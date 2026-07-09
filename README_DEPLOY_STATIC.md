@@ -1,36 +1,22 @@
-# Aurelia OS V2 — static GitHub Pages version
+# Ilona OS v3 — static GitHub Pages version
 
-Upload the **contents** of this folder to a public GitHub repository:
+Upload these files/folders at the root of your GitHub repository:
 
-- `index.html`
 - `assets/`
-- `favicon.svg`
 - `.nojekyll`
+- `index.html`
+- `manifest.webmanifest`
+- `sw.js`
 - `README_DEPLOY_STATIC.md`
 
-Then go to **Settings → Pages** and set:
+Then go to:
 
-- Source: **Deploy from a branch**
-- Branch: **main**
-- Folder: **/root**
+Settings → Pages → Source: Deploy from a branch → Branch: main → Folder: /root → Save
 
-No build, no GitHub Actions, no paid backend.
+No GitHub Actions needed.
 
-## Optional Google Calendar connection
+## Data
+Everything is saved locally in the browser. Use Settings → Export all data JSON often, especially before clearing browser data.
 
-The app works without keys using manual events and `.ics` import. For direct Google Calendar read access:
-
-1. Go to Google Cloud Console.
-2. Create/select a project.
-3. Enable **Google Calendar API**.
-4. Create an **OAuth Client ID** for a **Web application**.
-5. Add your GitHub Pages origin, for example: `https://YOURNAME.github.io`.
-6. Copy the Client ID into the app: **Settings → Google Calendar Client ID**.
-
-This is a browser OAuth Client ID, not a secret. Do not put API secrets in a static GitHub Pages app.
-
-## Data updates without coding
-
-Use **Settings → Export Data** to save your app data.
-Use **Settings → Import Data** to restore it.
-Use **Settings → Import Data Pack** to add new knowledge cards, links, hidden-gem books, workouts, or skincare notes from a JSON file.
+## Phone
+Open the GitHub Pages link on your phone, then use “Add to Home screen”. This version includes a PWA manifest and service worker.
