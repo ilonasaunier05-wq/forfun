@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>J.A.R.V.I.S. — Stark-inspired Personal assistant</title>
+<title>Jarvis — Stark-inspired Personal assistant</title>
 <style>
 :root{--c:#57dbff;--c2:#bb80ff;--rgb:87,219,255;--rg2:187,128,255;--bg:#050b15;--glass:rgba(7,24,39,.7);--grid:rgba(82,168,219,.06);--white:#e9f7ff;--muted:#7692ac}
 *{box-sizing:border-box}html{height:100%}body{margin:0;background:var(--bg);color:var(--white);font-family:Segoe UI,Inter,Arial,sans-serif;overflow-x:hidden;min-height:100vh}body[data-theme="feminine"]{--c:#e17cbb;--c2:#86adff;--rgb:225,124,187;--rg2:134,173,255;--grid:rgba(186,91,181,.07);--bg:#0c0712;--glass:rgba(23,9,31,.76);--muted:#a48fae}
@@ -24,7 +24,7 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
 </head>
 <body data-theme="classic">
 <div class="shell">
-  <header class="top"><div class="logo"><div class="logomark">◎</div><div><div class="logotext">J.A.R.V.I.S.</div><div class="subhead">PERSONAL INTELLIGENCE SYSTEM / MVP v0.1</div></div></div><div class="actions"><div class="pill status"><span class="dot"></span> LOCAL SYSTEM</div><button class="ghost" id="fullscreen">⛶ FULL SCREEN</button><button class="ghost" id="settings-open">⚙ SETTINGS</button><button class="ghost" id="memory-open">◇ MEMORY</button><button class="ghost" id="theme">◈ DARK FEMININE</button></div></header>
+  <header class="top"><div class="logo"><div class="logomark">◎</div><div><div class="logotext">Jarvis</div><div class="subhead">PERSONAL INTELLIGENCE SYSTEM / MVP v0.1</div></div></div><div class="actions"><div class="pill status"><span class="dot"></span> LOCAL SYSTEM</div><button class="ghost" id="fullscreen">⛶ FULL SCREEN</button><button class="ghost" id="settings-open">⚙ SETTINGS</button><button class="ghost" id="memory-open">◇ MEMORY</button><button class="ghost" id="theme">◈ DARK FEMININE</button></div></header>
   <main class="cols">
   <aside class="side">
    <section class="pane box"><div class="boxtitle">◈ MODULE STATUS</div>
@@ -36,16 +36,16 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
      <div id="scenes"></div><div class="line"></div><div id="devices" class="tiny">Loading device status…</div>
    </section>
    <section class="pane box"><div class="boxtitle">⌘ APPROVED PC ACTIONS</div>
-     <select id="pc-action" aria-label="PC action"><option value="open_notepad">Open Notepad</option><option value="open_calculator">Open Calculator</option><option value="focus">Focus / Notepad</option><option value="lock">Lock Windows</option><option value="sleep">Sleep Windows</option></select>
-     <button class="ghost" id="run-pc">REVIEW ACTION</button><button class="ghost" id="emergency">DISABLE TOOLS</button>
-     <div class="tiny" id="tools-status">DRY RUN enabled by default</div>
+     <select id="pc-action" aria-label="Application autorisée"></select>
+     <button class="ghost" id="run-pc">OUVRIR L'APPLICATION</button><button class="ghost" id="emergency">DISABLE TOOLS</button>
+     <div class="tiny" id="tools-status">Les actions réelles nécessitent confirmation.</div>
    </section>
   </aside>
   <section class="center">
    <div class="display-meta"><strong>◈ CENTRAL AI CORE ◈</strong><br/><span>HOLOGRAPHIC VOICE INTERFACE</span></div>
    <div class="reactor" id="reactor" data-state="idle" title="Cliquer pour parler" role="button" tabindex="0" aria-label="Activer le microphone et parler à Jarvis">
     <div class="halo"></div>
-    <svg class="rings" viewBox="0 0 600 600" role="img" aria-label="Réacteur JARVIS à anneaux animés">
+    <svg class="rings" viewBox="0 0 600 600" role="img" aria-label="Réacteur Jarvis à anneaux animés">
      <defs><filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
      <g class="ring-parts dim"><circle cx="300" cy="300" r="276" stroke-dasharray="2 12"/><circle cx="300" cy="300" r="249" stroke-width=".7"/><circle cx="300" cy="300" r="236" stroke-dasharray="2 8"/></g>
      <g class="ring-parts ringspin medium"><circle cx="300" cy="300" r="269" stroke-width="3.5" stroke-dasharray="90 20 8 40 15 60 120 25 9 90 12 40"/><circle cx="300" cy="300" r="225" stroke-width="2" stroke-dasharray="12 13 67 28 8 18 21 30 75 95"/></g>
@@ -55,29 +55,30 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
      <g class="ring-parts dim"><path d="M40 300H135 M465 300H560 M300 40V135 M300 465V560" stroke-dasharray="3 8"/><path d="M88 210H142L163 233 M512 389H458L437 367 M205 78V130 M395 522V470"/></g>
      <g fill="var(--c)" opacity=".7"><circle cx="300" cy="31" r="3"/><circle cx="300" cy="569" r="3"/><circle cx="31" cy="300" r="3"/><circle cx="569" cy="300" r="3"/></g>
     </svg>
-    <div class="core"><small>INTERFACE SYSTEM</small><div class="title">J.A.R.V.I.S.</div><div class="mode" id="state">STANDBY</div><div class="freq" id="freq"></div></div>
+    <div class="core"><small>INTERFACE SYSTEM</small><div class="title">Jarvis</div><div class="mode" id="state">STANDBY</div><div class="freq" id="freq"></div></div>
    </div>
    <div class="hint" id="hint">Clique sur le réacteur ou sur <strong>ACTIVER MICRO</strong> pour parler.</div>
-   <div class="controlbar"><button class="ctl primary" id="talk">◎ ACTIVER MICRO</button><button class="ctl" id="test">▷ VOICE TEST</button><button class="ctl" id="stop">■ ARRÊTER</button></div>
+   <div class="controlbar"><button class="ctl primary" id="talk">◎ ACTIVER MICRO</button><button class="ctl" id="wake">DOUBLE CLAP : OFF</button><button class="ctl" id="test">▷ VOICE TEST</button><button class="ctl" id="stop">■ ARRÊTER</button></div>
    <div class="readout"><div><b id="clock">--:--:--</b><span>LOCAL TIME</span></div><div><b id="sys">IDLE</b><span>CORE STATE</span></div><div><b>LOCAL MVP</b><span>SYSTEM BUILD</span></div></div>
   </section>
-  <aside class="right pane chat"><div class="boxtitle">▤ NEURAL LINK / CONVERSATION</div><div class="sessionbar"><select id="sessions" aria-label="Conversation"></select><button class="ghost" id="new-session">＋</button><button class="ghost" id="delete-session">DELETE</button></div><div class="messages" id="messages" role="log" aria-live="polite"></div><form class="entry" id="form"><input id="input" placeholder="Parle ou écris à Jarvis…" autocomplete="off" aria-label="Message pour Jarvis"/><button aria-label="Envoyer">↗</button></form><div class="disclaimer">Free setup requires a Groq Free Plan key. Paid search is disabled by default; answers are not web-verified. Browser speech may use an online service. Speech animation indicates synthesis state, not measured output audio.</div></aside>
+  <aside class="right pane chat"><div class="boxtitle">▤ NEURAL LINK / CONVERSATION</div><div class="sessionbar"><select id="sessions" aria-label="Conversation"></select><button class="ghost" id="new-session">＋</button><button class="ghost" id="delete-session">DELETE</button></div><div class="messages" id="messages" role="log" aria-live="polite"></div><form class="entry" id="form"><input id="input" placeholder="Parle ou écris à Jarvis…" autocomplete="off" aria-label="Message pour Jarvis"/><button aria-label="Envoyer">↗</button></form><div class="disclaimer">Micro : sounddevice → Groq Whisper. Voix : Edge TTS masculine → haut-parleurs Windows. Actions confirmées, erreurs et sources réelles affichées. F8 : parler · F9 : interrompre.</div></aside>
   </main>
   <footer class="footer"><span>STARK-INSPIRED • PERSONAL DESIGN • NOT AFFILIATED WITH MARVEL</span><span class="console">◈ PRIVATE ASSISTANT • EXPLICIT MEMORY • ALLOWLISTED TOOLS</span></footer>
 </div>
 <dialog id="settings-dialog"><h2>SYSTEM CONFIGURATION</h2>
-<label>Provider<select id="provider"></select></label><label>Model<select id="model"></select></label>
-<label>Voice / language<select id="language"><option value="fr-FR">Français</option><option value="en-US">English</option></select></label>
+<label>Moteur<select id="provider"><option>Groq officiel</option></select></label><label>Modèle<select id="model"></select></label>
+<label>Langue<select id="language"><option value="en">English</option><option value="fr">Français</option></select></label>
+<label>Voix masculine<select id="voice"><option value="en-GB-RyanNeural">Ryan · English UK</option><option value="fr-FR-HenriNeural">Henri · Français</option></select></label><div id="voice-note" class="notice">Synthèse Edge TTS sur le PC Windows; voix masculine système en secours.</div>
 <label><input type="checkbox" id="spoken" checked> Speak completed replies</label>
-<label><input type="checkbox" id="web-search"> Request real web search (optional API cost)</label>
+<div class="notice">Recherche réelle DuckDuckGo disponible comme outil. Micro et lecture audio sont sur le PC qui exécute Python.</div>
 <label><input type="checkbox" id="reduced"> Reduce motion</label>
-<p class="notice">Keys and provider endpoints are configured in the backend .env, never in this browser. Default free mode permits only Groq and blocks paid search. Stay on Groq’s Free Plan without paid billing. Browser recognition varies by device and may send audio to the browser vendor.</p>
+<p class="notice">Clé Groq et dossiers autorisés dans .env. Les textes et enregistrements vocaux sont envoyés à Groq; Edge TTS envoie le texte à Microsoft. Reste sur le Free Plan sans facturation payante.</p>
 <div id="usage" class="budget"></div><div class="dialog-actions"><button class="ghost" id="export">EXPORT DATA</button><button class="ghost" id="logout">SIGN OUT</button><button class="ghost" data-close="settings-dialog">CLOSE</button></div></dialog>
 <dialog id="memory-dialog"><h2>LONG-TERM MEMORY</h2><p class="notice">Only explicitly confirmed memories are stored. SQLite is the source of truth; app-managed Markdown exports can be read in Obsidian. Cloud replies may include relevant memories.</p>
 <input id="memory-query" placeholder="Search memories" aria-label="Search memories"><button class="ghost" id="memory-search">SEARCH</button>
-<div id="memory-list"></div><label>Category<select id="memory-category"><option>Profile</option><option selected>Preferences</option><option>Home</option><option>Projects</option><option>Routines</option></select></label>
+<pre id="memory-markdown" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><div id="memory-list"></div><label>Category<select id="memory-category"><option>Profile</option><option selected>Preferences</option><option>Home</option><option>Projects</option><option>Routines</option></select></label>
 <label>New memory<textarea id="memory-content" maxlength="4000"></textarea></label><div class="dialog-actions"><button class="ghost" id="memory-add">REVIEW & SAVE</button><button class="ghost" data-close="memory-dialog">CLOSE</button></div></dialog>
 <dialog id="confirm-dialog"><h2>CONFIRM ACTION</h2><p id="confirm-text" class="notice"></p><div class="dialog-actions"><button class="ghost" id="confirm-yes">CONFIRM</button><button class="ghost" id="confirm-no">CANCEL</button></div></dialog>
-<dialog id="login-dialog"><h2>PRIVATE J.A.R.V.I.S.</h2><p class="notice">Enter the password configured on your own backend. API keys belong in the server .env.</p><form id="login-form"><input type="password" id="password" aria-label="JARVIS password" autocomplete="current-password"><button class="ghost">SIGN IN</button><p id="login-error" class="error"></p></form></dialog>
+<dialog id="login-dialog"><h2>PRIVATE Jarvis</h2><p class="notice">Enter the password configured on your own backend. API keys belong in the server .env.</p><form id="login-form"><input type="password" id="password" aria-label="JARVIS password" autocomplete="current-password"><button class="ghost">SIGN IN</button><p id="login-error" class="error"></p></form></dialog>
 <script src="/ui/app.js" defer></script>
 </body></html>

@@ -1,52 +1,56 @@
-import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from zoneinfo import ZoneInfo
+import yaml
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / '.env')
 
+def local_path(name, default):
+    path = Path(os.path.expandvars(os.path.expanduser(os.getenv(name, str(default)))))
+    return (path if path.is_absolute() else ROOT / path).resolve()
+
 @dataclass
 class Settings:
-    data_dir: Path = field(default_factory=lambda: Path(os.getenv('JARVIS_DATA_DIR', str(ROOT / 'data'))))
-    password: str = field(default_factory=lambda: os.getenv('JARVIS_PASSWORD', ''))
+    notes_dir: Path = field(default_factory=lambda: local_path('NOTES_DIR', ROOT / 'data'))
+    projects_dir: Path = field(default_factory=lambda: local_path('PROJECTS_DIR', ROOT))
+    key: str = field(default_factory=lambda: os.getenv('GROQ_API_KEY', ''), repr=False)
+    model: str = field(default_factory=lambda: os.getenv('GROQ_MODEL', 'openai/gpt-oss-20b'))
+    fallback_model: str = field(default_factory=lambda: os.getenv('GROQ_FALLBACK_MODEL', 'llama-3.1-8b-instant'))
+    whisper_model: str = field(default_factory=lambda: os.getenv('WHISPER_MODEL', 'whisper-large-v3-turbo'))
+    language: str = field(default_factory=lambda: os.getenv('JARVIS_LANGUAGE', 'en'))
+    voice: str = field(default_factory=lambda: os.getenv('TTS_VOICE', ''))
+    timezone: str = field(default_factory=lambda: os.getenv('JARVIS_TIMEZONE', 'Europe/Paris'))
+    max_output: int = field(default_factory=lambda: int(os.getenv('JARVIS_MAX_OUTPUT_TOKENS', '1200')))
+    password: str = field(default_factory=lambda: os.getenv('JARVIS_PASSWORD', ''), repr=False)
     allowed_hosts: list = field(default_factory=lambda: [x.strip().lower() for x in os.getenv('JARVIS_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1').split(',')])
     secure_cookie: bool = field(default_factory=lambda: os.getenv('JARVIS_SECURE_COOKIE', 'false').lower() == 'true')
-    dry_run: bool = field(default_factory=lambda: os.getenv('JARVIS_DRY_RUN', 'true').lower() != 'false')
-    tools_enabled: bool = True
-    free_mode: bool = field(default_factory=lambda: os.getenv('JARVIS_FREE_MODE', 'true').lower() != 'false')
     ha_url: str = field(default_factory=lambda: os.getenv('HA_URL', '').rstrip('/'))
-    ha_token: str = field(default_factory=lambda: os.getenv('HA_TOKEN', ''))
+    ha_token: str = field(default_factory=lambda: os.getenv('HA_TOKEN', ''), repr=False)
     ha_entities: list = field(default_factory=lambda: [x.strip() for x in os.getenv('HA_ENTITIES', '').split(',') if x.strip()])
-    search_key: str = field(default_factory=lambda: os.getenv('BRAVE_SEARCH_API_KEY', ''))
-    max_output: int = field(default_factory=lambda: int(os.getenv('JARVIS_MAX_OUTPUT_TOKENS', '1024')))
-    daily_requests: int = field(default_factory=lambda: int(os.getenv('JARVIS_DAILY_REQUEST_LIMIT', '100')))
-    daily_budget: float = field(default_factory=lambda: float(os.getenv('JARVIS_DAILY_BUDGET_USD', '0')))
-    providers: dict = field(default_factory=dict)
-    scenes_file: Path = field(default_factory=lambda: ROOT / 'scenes.json')
+    credentials_file: Path = field(default_factory=lambda: local_path('GOOGLE_CREDENTIALS_FILE', ROOT / 'credentials.json'))
+    input_device: str = field(default_factory=lambda: os.getenv('AUDIO_INPUT_DEVICE', ''))
+    clap_sensitivity: float = field(default_factory=lambda: float(os.getenv('CLAP_SENSITIVITY', '6')))
+    silence_seconds: float = field(default_factory=lambda: float(os.getenv('SILENCE_SECONDS', '0.9')))
+    config_file: Path = field(default_factory=lambda: ROOT / 'config.yaml')
+    tools_enabled: bool = True
 
     def __post_init__(self):
-        if not self.providers:
-            self.providers = {
-                'openai': {'url': 'https://api.openai.com/v1', 'key': os.getenv('OPENAI_API_KEY', '') or os.getenv('JARVIS_OPENAI_KEY', ''), 'models': os.getenv('OPENAI_MODELS', 'gpt-4.1-mini,gpt-4.1').split(',')},
-                'compatible': {'url': os.getenv('AI_BASE_URL', 'https://api.groq.com/openai/v1').rstrip('/'), 'key': os.getenv('GROQ_API_KEY', '') or os.getenv('AI_API_KEY', ''), 'models': os.getenv('AI_MODELS', 'llama-3.3-70b-versatile').split(',')},
-            }
-        if self.free_mode:
-            # Endpoint and model allowlist prevents switching to an arbitrary paid API.
-            compatible = self.providers.get('compatible')
-            self.providers = {'compatible': compatible} if compatible and compatible['url'] == 'https://api.groq.com/openai/v1' else {}
-            self.search_key = ''
-            if not self.providers:
-                raise ValueError('Free mode requires the Groq endpoint https://api.groq.com/openai/v1. Paid provider fallback is disabled.')
-        # User-supplied rates, USD per million input/output tokens. No invented cost estimate.
-        self.rates = json.loads(os.getenv('JARVIS_MODEL_RATES_JSON', '{}'))
-        if not isinstance(self.rates, dict) or any(not isinstance(v, list) or len(v) != 2 or any(type(rate) not in (int, float) or rate < 0 for rate in v) for v in self.rates.values()):
-            raise ValueError('Model rates must map provider/model to two nonnegative prices.')
-        for p in self.providers.values():
-            if not p['url'].startswith('https://'):
-                raise ValueError('AI provider endpoints must use HTTPS.')
-        if self.ha_url and not self.ha_url.startswith(('https://', 'http://')):
-            raise ValueError('HA_URL must be an HTTP(S) URL.')
-        if self.max_output < 1 or self.daily_requests < 1 or self.daily_budget < 0:
-            raise ValueError('Usage limits must be positive (budget may be zero to disable).')
+        self.notes_dir = Path(self.notes_dir).resolve()
+        self.projects_dir = Path(self.projects_dir).resolve()
+        self.data_dir = self.notes_dir
+        self.memory_file = self.notes_dir / 'memory.md'
+        self.private_dir = self.notes_dir / '.private'
+        self.tz = ZoneInfo(self.timezone)
+        if self.language not in {'en', 'fr'}:
+            raise ValueError('JARVIS_LANGUAGE must be en or fr.')
+        self.voice = self.voice or ('fr-FR-HenriNeural' if self.language == 'fr' else 'en-GB-RyanNeural')
+        if not 2 <= self.clap_sensitivity <= 30 or not 0.3 <= self.silence_seconds <= 3:
+            raise ValueError('Invalid clap sensitivity or silence interval.')
+        if self.ha_url and not self.ha_url.startswith(('http://', 'https://')):
+            raise ValueError('HA_URL must use HTTP(S).')
+        self.app_config = yaml.safe_load(self.config_file.read_text(encoding='utf-8')) if self.config_file.exists() else {}
+        if not isinstance(self.app_config, dict) or not isinstance(self.app_config.get('apps', {}), dict):
+            raise ValueError('config.yaml must contain an apps mapping.')

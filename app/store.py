@@ -13,10 +13,14 @@ def now():
 
 class Store:
     def __init__(self, directory):
-        self.directory = Path(directory)
+        self.directory = Path(directory).resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
         self.memory_dir = self.directory / 'memory'
+        if not self.memory_dir.resolve().is_relative_to(self.directory):
+            raise ValueError('Memory export directory escapes NOTES_DIR.')
         self.memory_dir.mkdir(exist_ok=True)
+        if not (self.directory / 'jarvis.sqlite3').resolve().is_relative_to(self.directory):
+            raise ValueError('Database path escapes NOTES_DIR.')
         if not (self.directory / 'jarvis.sqlite3').exists() and any((self.memory_dir / (c + '.md')).exists() for c in CATEGORIES):
             raise ValueError('Existing memory Markdown found without a JARVIS database. Choose a new data directory; no files were overwritten.')
         self.lock = threading.RLock()
@@ -102,30 +106,10 @@ class Store:
                     text += f"## {m['id']}\n\n{m['content']}\n\n"
                 target = self.memory_dir / (category + '.md')
                 temp = target.with_suffix('.md.tmp')
+                if not temp.resolve().is_relative_to(self.directory):
+                    raise ValueError('Memory export temporary path escapes NOTES_DIR.')
                 temp.write_text(text, encoding='utf-8')
                 temp.replace(target)
-
-    def reserve(self, sid, provider, model, input_bound, settings):
-        rates = settings.rates.get(provider + '/' + model)
-        if settings.daily_budget and (not rates or len(rates) != 2):
-            raise ValueError('Set input/output model rates before enabling a dollar budget.')
-        cost = (input_bound * rates[0] + settings.max_output * rates[1]) / 1_000_000 if rates else 0
-        day = now()[:10]
-        uid = str(uuid.uuid4())
-        with self.lock, self.db:
-            totals = self.db.execute('SELECT count(*), coalesce(sum(coalesce(actual_cost,reserved_cost)),0) FROM usage WHERE day=?', (day,)).fetchone()
-            if totals[0] >= settings.daily_requests:
-                raise ValueError('Daily API request limit reached')
-            if settings.daily_budget and totals[1] + cost > settings.daily_budget:
-                raise ValueError('Daily API budget limit reached')
-            self.db.execute('INSERT INTO usage(id,session,day,provider,model,reserved_cost,status) VALUES(?,?,?,?,?,?,?)', (uid, sid, day, provider, model, cost, 'pending'))
-        return uid
-
-    def finish_usage(self, uid, usage, status, settings, provider, model):
-        rates = settings.rates.get(provider + '/' + model)
-        inp, out = usage.get('prompt_tokens', 0), usage.get('completion_tokens', 0)
-        actual = (inp * rates[0] + out * rates[1]) / 1_000_000 if rates and usage else None
-        self.execute('UPDATE usage SET input_tokens=?,output_tokens=?,actual_cost=?,status=? WHERE id=?', (inp, out, actual, status, uid))
 
     def log_action(self, action, result):
         self.execute('INSERT INTO actions(action,result,created) VALUES(?,?,?)', (json.dumps(action), json.dumps(result), now()))

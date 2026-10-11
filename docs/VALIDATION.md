@@ -1,39 +1,29 @@
-# MVP validation
+# Actual validation — native Jarvis revision
 
-Executed in the onboarding Linux cloud environment, using Python 3.12 and Chromium. This is current-instance validation, not a Windows/hardware certification or proof of restoration in a new cloud task.
+The implementation extends the existing HUD/backend. Simulation flags and fake device/action paths are removed. Official Groq SDK, native sounddevice capture, Edge/pyttsx3/pygame playback, and real tool functions are used. No mocked provider/hardware responses are used in the new tests or self-test.
 
-## Passed
+## Executed and passed
 
-- Created `.venv` and installed application dependencies. Captured exact installed versions in `requirements.lock`; re-running installation from that lock succeeded. `pip check`: no broken requirements. The prepared Linux virtual environment occupies approximately 33 MB; Windows size and runtime memory use may differ.
-- `python -m unittest discover -s tests -v`: **19 tests executed, 19 passed**, none skipped. Memory confirmation/search/edit/delete, Markdown regeneration, restart persistence, preservation of pre-existing Markdown without a database, sessions/export/delete, missing-key and incomplete-response handling, provider SSE HTTP transport, retrieval context, Home Assistant REST payload/filtering, action validation/replay/dry run/emergency stop, changed-scene confirmation rejection, deterministic commands, authentication/Host/origin/content-type defenses, request and dollar reservation limits.
-- `node --check ui/app.js`: JavaScript parses.
-- `CHROMIUM_PATH=/usr/bin/chromium node tests/ui_smoke.cjs`: passed. Authenticated browser login; HttpOnly cookie; theme switch; reduced-motion preference; explicit memory proposal/confirmation/save/reload/delete; honest missing-key error and reactor state; dry-run PC action; emergency disable/re-enable; streamed response rendering using a browser response fixture; desktop 1440 px, tablet 800 px, phone 390 px layouts with no horizontal overflow and original reactor visible; no browser JavaScript exceptions.
-- Launched and restarted the real Uvicorn application on loopback. A live HTTP request returned Linux CPU/RAM data, no battery, and enabled dry run. Chromium loaded the real page and telemetry; desktop/phone screenshots were inspected/captured. The actual HUD retains the starter's SVG geometry and themes.
-- The original tracked repository README was left unchanged. All MVP source/config/tests are new files. Runtime data, virtual environment, cache files, and secret `.env` are ignored.
+- Dependencies installed in the existing Linux virtual environment; `pip check` found no broken requirements. A Windows x64 / CPython 3.11 binary-package resolution succeeded for `requirements.txt`; Windows voice dependency wheels were separately checked. This is dependency availability, not execution on Windows.
+- 13 regression tests passed: real Markdown writes/read-back, declined actions, path traversal/secret/symlink restrictions, actual line-numbered/truncated file reads, actual datetime and relative calendar dates, allowlist checks, emergency-stop write rejection, honest unavailable integrations, TTS sanitization, real API missing-key handling, persistence, Host/origin/auth guards, and retained HUD.
+- Chromium against `python main.py --text --no-browser`: authenticated HUD, native male-voice configuration, actual missing-key error, actually confirmed `remember` write and file read-back, emergency stop, original SVG reactor and desktop/tablet/phone viewports without horizontal overflow. No microphone/speaker/cloud success was inferred from the browser check.
+- `python main.py --selftest` was run, using real integrations, stdin noninteractive. **3 of 18 checks passed**: actual local date/time, actual project listing, actual project file reading. The overall self-test **failed (exit 1)**.
 
-Provider and Home Assistant tests use **mock HTTP transports** with their real adapter code; browser streaming uses a **fixture**. These checks prove parsing, validation and UI wiring, not live external service access. The missing-key path was exercised against the actual running backend.
+## Remaining self-test failures and non-executed actions
 
-## Not verified here
+- Microphone: Linux runtime has no PortAudio library or exposed Windows input device. Whisper and clap tests therefore had no actual recording to test. Windows sounddevice wheels bundle PortAudio; physical Windows recording still needs verification.
+- Groq model/tool call: no GROQ_API_KEY is configured in the cloud. No live model access, free-tier eligibility, function-call response or transcription success is claimed.
+- TTS: Edge request returned a proxy error; Linux fallback reported eSpeak/eSpeak-ng absent. No male audio or audible pronunciation was verified here. Windows uses installed SAPI voices as fallback; it still requires testing on the user's speakers.
+- Global hotkeys: require Windows.
+- DuckDuckGo search: actual search attempt failed under cloud network policy; no sources were fabricated. The library reported DDGSException: No results found; a separate direct DuckDuckGo HTTP probe returned ProxyError, confirming a blocked service route.
+- Note/task/memory self-test actions, browser/app/volume actions: the noninteractive run had no affirmative confirmation, so they were **NOT RUN** and reported FAIL. Regression and browser tests separately performed actual confirmed writes only in temporary test directories. Windows launch/volume outcomes were not fabricated.
+- Calendar: no credentials.json or OAuth token; **NOT RUN**, optional setup required.
+- Home Assistant: no URL/token/allowlisted entities; **NOT RUN**, optional setup required.
 
-- Real OpenAI/alternative provider or Brave Search calls: no required keys are configured in this machine. API generation is implemented but no live AI answer is claimed.
-- Windows PowerShell launcher, native application launch/lock/sleep, Windows telemetry: the cloud host is Linux. The launcher and fixed Windows calls are provided for testing on your Windows PC. Real lock/sleep are intentionally never exercised in cloud tests.
-- Physical Home Assistant entities/scenes: no HA URL, token, or actual entities are configured. Dashboard devices are DEMO until configured. The adapter is not claimed to have controlled your apartment.
-- Real microphone capture, online browser recognition, audible synthesized speech, and interruptions on actual Windows/Android hardware. Implemented using browser APIs with text fallback; headless browser layout tests do not validate microphone/speaker hardware or browser-vendor services.
-- Android certificate trust, LAN firewall, actual Galaxy Tab S8/phone performance, and fullscreen support on those devices. Responsive Chromium viewports passed; physical devices still need validation.
-- Cloud publication and restoration in a new task. Draft saving persists instructions but does not execute, apply, or publish them.
+## Documentation and limits
 
-A Starlette/httpx TestClient deprecation notice is emitted by the pinned dependency versions. It does not skip tests or change their passing result; future dependency updates should rerun this suite.
+Official current Groq SDK README was read from `groq/groq-python`, confirming AsyncGroq, Whisper `whisper-large-v3-turbo`, error types and retry configuration; it contains `openai/gpt-oss-20b`. Detailed model/tool pages on console.groq.com were blocked by the proxy. The current account's model availability and free-plan status were not verified. The live self-test checks the configured model and an actual forced tool call when a key is provided.
 
-## Cloud draft saved
+No physical Windows 11/Python 3.11 runtime is attached. Source compiled and ran on Python 3.12/Linux; Windows binary dependencies resolved. PowerShell launcher/updater, soundcard, clap calibration and native Windows API calls remain platform/hardware validation steps. Google OAuth and physical HA need the user's credentials/devices and affirmative confirmations. Publication/restoration of the cloud environment is separate from saving a draft.
 
-Saved `install_script` and `start_skill`, plus custom network domains `api.openai.com`, `api.groq.com`, and `api.search.brave.com`, preserving the selected package-manager preset. Optional personal secret requirements: `JARVIS_OPENAI_KEY` (OpenAI) and `BRAVE_SEARCH_API_KEY` (search). These are metadata declarations, not supplied secret values. The `OPENAI_` prefix is reserved by cloud secret settings, so the backend also accepts `JARVIS_OPENAI_KEY`; your Windows `.env` can use ordinary `OPENAI_API_KEY`.
-
-Review and save the draft in environment settings, enter keys securely if you want live cloud validation, and publish the environment. No keys should be posted in chat. The compatible provider can instead be configured via server-side `.env`; credentials are optional for testing local memory, telemetry, and dry run.
-
-## No-payment revision
-
-Default `JARVIS_FREE_MODE=true` now exposes only the Groq endpoint, rejects other endpoints, and blocks web search even if a search key is present. Backend tests also verify paid-provider/search rejection without recording an API request. Browser checks verify Groq is the only selectable provider and search is disabled; the full existing HUD smoke flow passed again. The restarted live server reports free mode, Groq only, and search disabled.
-
-No Groq key exists in the current instance. Requests to the provider's official documentation were blocked by the network proxy; current plan availability and model eligibility could not be checked here. No live AI answer or account billing status is claimed as verified. A user must create a Free Plan key without enabling paid billing. Account-side billing cannot be enforced by this app.
-
-The draft now saves `JARVIS_FREE_MODE=true`, the optional personal `GROQ_API_KEY` requirement for api.groq.com, and updated startup instructions. Earlier optional OpenAI/Brave requirements remain declared but are unused and blocked in free mode. The existing installation script and network settings were preserved. Review/save and publish are still separate from draft persistence.
+The saved cloud draft was updated with native install/start instructions, Groq/model/language/folder requirements, and additional Groq docs, Microsoft speech, DuckDuckGo and Google OAuth/Calendar network domains. This did not apply or publish those settings; current proxy failures remain real. Existing unrelated domains/presets were preserved.

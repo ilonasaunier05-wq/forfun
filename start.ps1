@@ -1,14 +1,18 @@
-param([int]$Port = 8000)
+param([int]$Port = 8000, [switch]$Text, [switch]$Selftest)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 if (-not (Test-Path '.venv/Scripts/python.exe')) {
-    py -3 -m venv .venv
-    if ($LASTEXITCODE -ne 0) { throw 'Install Python 3.11+ with the Windows py launcher first.' }
+    if (Get-Command py -ErrorAction SilentlyContinue) { py -3.11 -m venv .venv }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) { python -m venv .venv }
+    else { throw 'Installe Python 3.11 avec Add Python to PATH, puis rouvre PowerShell.' }
+    if ($LASTEXITCODE -ne 0) { throw 'Creation de .venv impossible. Installe Python 3.11 ou utilise python -m venv .venv.' }
 }
 $JarvisPython = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'
-& $JarvisPython -m pip install -r requirements.lock
+& $JarvisPython -m pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 if (-not (Test-Path '.env')) { Copy-Item '.env.example' '.env' }
-Write-Host "JARVIS: http://127.0.0.1:$Port - open in Chrome or Edge. Ctrl+C stops the server."
-& $JarvisPython -m uvicorn app.main:app --host 127.0.0.1 --port $Port --no-proxy-headers
+$JarvisArgs = @('main.py', '--port', "$Port")
+if ($Text) { $JarvisArgs += '--text' }
+if ($Selftest) { $JarvisArgs += '--selftest' }
+& $JarvisPython @JarvisArgs
 exit $LASTEXITCODE
