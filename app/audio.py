@@ -29,8 +29,10 @@ class Microphone:
             try:
                 self.queue.put_nowait(chunk)
             except queue.Full:
-                self.queue.get_nowait()
-                self.queue.put_nowait(chunk)
+                try: self.queue.get_nowait()
+                except queue.Empty: pass
+                try: self.queue.put_nowait(chunk)
+                except queue.Full: pass
         self.sample_rate = int(sd.query_devices(device, 'input')['default_samplerate'])
         try:
             self.stream = sd.InputStream(samplerate=self.sample_rate, blocksize=int(self.sample_rate * 0.02), channels=1, dtype='float32', callback=callback, device=device)

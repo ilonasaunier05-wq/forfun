@@ -21,7 +21,9 @@ class Runtime:
         self.mic = Microphone(self.settings)
         self.wake = threading.Event()
         self.stop = threading.Event()
-        self.hotkeys = Hotkeys(self.wake.set, self.speaker.interrupt)
+        self.loop = None
+        self.audio_tasks = set()
+        self.hotkeys = Hotkeys(self.signal_wake, self.speaker.interrupt)
         self.listeners = set()
         self.confirmations = {}
         self.turn_lock = asyncio.Lock()
@@ -30,6 +32,29 @@ class Runtime:
         self.microphone_error = None
         self.native_session = None
         self.speak_replies = True
+
+    def signal_wake(self):
+        self.speaker.interrupt()
+        self.wake.set()
+        if self.stop.is_set() or not self.loop or self.loop.is_closed(): return
+        if self.voice_task and not self.voice_task.done(): return
+        def launch():
+            if self.audio_tasks or self.stop.is_set(): return
+            task=asyncio.create_task(self.hotkey_turn())
+            self.audio_tasks.add(task);task.add_done_callback(self.audio_tasks.discard)
+        self.loop.call_soon_threadsafe(launch)
+
+    async def hotkey_turn(self):
+        try:
+            await asyncio.sleep(0.15)
+            if self.turn_lock.locked():
+                await self.emit('notice','A response or confirmation is still active; finish it before a new voice turn.')
+                return
+            await self.soft_say('Yes?')
+            text=await self.record_once()
+            await self.native_turn(text,'voice')
+        except Exception as exc:
+            await self.emit('error',self.safe_error(exc))
 
     def safe_error(self, exc):
         message = str(exc)
@@ -94,10 +119,12 @@ class Runtime:
         await self.soft_say(text)
 
     async def record_once(self, wait_timeout=10):
+        self.wake.clear()
         self.speaker.interrupt()
         async with self.mic_lock:
             await self.emit('state', 'listening')
             audio = await asyncio.to_thread(self.mic.record, wait_timeout, 20, self.stop)
+            self.microphone_error = None
             await self.emit('state', 'transcribing')
             text = await self.brain.transcribe(audio, self.rate_notice)
         await self.emit('transcript', text)
@@ -144,6 +171,7 @@ class Runtime:
     async def start_voice(self):
         if self.voice_task and not self.voice_task.done():
             return
+        self.loop=asyncio.get_running_loop()
         await asyncio.to_thread(self.mic.start)
         self.microphone_error = None
         self.voice_task = asyncio.create_task(self._voice_loop())
@@ -182,6 +210,8 @@ class Runtime:
         self.stop.set(); self.wake.set(); self.speaker.interrupt()
         for future, _ in self.confirmations.values():
             if not future.done(): future.set_result(False)
+        for task in self.audio_tasks: task.cancel()
+        if self.audio_tasks: await asyncio.gather(*self.audio_tasks,return_exceptions=True)
         if self.voice_task:
             self.voice_task.cancel()
             try: await self.voice_task

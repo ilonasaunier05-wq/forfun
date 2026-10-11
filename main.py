@@ -10,6 +10,7 @@ from app.main import create_app
 async def run(args):
     import uvicorn
     runtime=Runtime()
+    runtime.loop=asyncio.get_running_loop()
     server=uvicorn.Server(uvicorn.Config(create_app(runtime),host='127.0.0.1',port=args.port,proxy_headers=False,log_level='warning',timeout_graceful_shutdown=5))
     # Let the root handle Ctrl+C; Uvicorn owns cleanup through its lifespan.
     server_task=asyncio.create_task(server.serve())
@@ -22,8 +23,8 @@ async def run(args):
         except Exception as exc:
             runtime.microphone_error=runtime.safe_error(exc)
             print('Microphone unavailable: '+runtime.microphone_error+'\nTyped text and HUD remain usable.',flush=True)
-        try:runtime.hotkeys.start()
-        except Exception as exc:print(runtime.safe_error(exc),flush=True)
+    try:runtime.hotkeys.start()
+    except Exception as exc:print(runtime.safe_error(exc),flush=True)
     queue=asyncio.Queue()
     loop=asyncio.get_running_loop()
     def read_stdin():
