@@ -147,7 +147,7 @@ Optional developer-only Chromium/Playwright check: `node tests/ui_smoke.cjs`. It
 Stop Jarvis with Ctrl+C. In its PowerShell directory:
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ilonasaunier05-wq/forfun/main/update.ps1" -OutFile .\update.ps1
+Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/ilonasaunier05-wq/forfun/main/update.ps1" -OutFile .\update.ps1
 .\update.ps1
 .\start.ps1
 ```

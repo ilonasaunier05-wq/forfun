@@ -103,8 +103,14 @@ async def selftest():
                 if expected not in file.read_text(encoding='utf-8'):raise RuntimeError('Written content did not read back correctly.')
                 return {'status':'written_and_read_back','path':str(file)}
             await check(name+' real Markdown write/read-back',write)
-        await check('open_url real default browser',lambda:real_tool('open_url',{'url':'https://www.python.org'}))
-        await check('open_app real allowlisted calculator',lambda:real_tool('open_app',{'name':'calculator'}))
+        async def observed_action(name,args,question):
+            result=await real_tool(name,args)
+            try:observed=input(question+' Type yes/oui: ').strip().lower()
+            except EOFError:observed=''
+            if observed not in {'yes','oui'}:raise RuntimeError('UNVERIFIED: operating-system acceptance does not prove the visible application; user observation missing.')
+            return {**result,'observed_by_user':True}
+        await check('open_url real default browser',lambda:observed_action('open_url',{'url':'https://www.python.org'},'Did your actual browser open the Python website?'))
+        await check('open_app real allowlisted calculator',lambda:observed_action('open_app',{'name':'calculator'},'Did the actual Calculator window open?'))
         await check('pc_action real volume key',lambda:real_tool('pc_action',{'name':'volume_up'}))
         start=datetime.now(runtime.settings.tz)+timedelta(minutes=30)
         await check('add_calendar_event real OAuth/create/read-back',lambda:real_tool('add_calendar_event',{'title':'Jarvis self-test (real event)','start':start.isoformat(),'end':(start+timedelta(minutes=10)).isoformat()}))

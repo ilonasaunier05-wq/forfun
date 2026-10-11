@@ -9,7 +9,7 @@ $JarvisBackup = Join-Path $env:TEMP ('Jarvis-source-backup-' + [guid]::NewGuid()
 New-Item -ItemType Directory -Path $JarvisDownload, $JarvisBackup | Out-Null
 $JarvisItems = @('app', 'ui', 'docs', 'tests', 'main.py', 'start.ps1', 'requirements.txt', 'requirements.lock', 'README.md')
 try {
-    Invoke-WebRequest -Uri 'https://github.com/ilonasaunier05-wq/forfun/archive/refs/heads/main.zip' -OutFile (Join-Path $JarvisDownload 'source.zip')
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Uri 'https://github.com/ilonasaunier05-wq/forfun/archive/refs/heads/main.zip' -OutFile (Join-Path $JarvisDownload 'source.zip')
     Expand-Archive -Path (Join-Path $JarvisDownload 'source.zip') -DestinationPath (Join-Path $JarvisDownload 'source')
     $JarvisSource = Join-Path $JarvisDownload 'source/forfun-main'
     if (-not (Test-Path (Join-Path $JarvisSource 'app/main.py'))) { throw 'Archive invalide. Aucun fichier remplace.' }
