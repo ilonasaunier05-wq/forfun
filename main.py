@@ -20,7 +20,9 @@ async def run(args):
     print(f'Jarvis HUD: http://127.0.0.1:{args.port}\nType your message, yes/no for confirmations, /stop to interrupt, /quit to exit.',flush=True)
     if not args.no_browser:webbrowser.open(f'http://127.0.0.1:{args.port}')
     if not args.text:
-        try:await runtime.start_voice()
+        try:
+            await asyncio.to_thread(runtime.mic.start)
+            print('Microphone ready. Press F8 or click the microphone for one request. Double clap is OFF until enabled.',flush=True)
         except Exception as exc:
             runtime.microphone_error=runtime.safe_error(exc)
             print('Microphone unavailable: '+runtime.microphone_error+'\nTyped text and HUD remain usable.',flush=True)
@@ -47,7 +49,7 @@ async def run(args):
                 await server_task;break
             if not text:continue
             if text=='/quit':break
-            if text=='/stop':runtime.speaker.interrupt();continue
+            if text=='/stop':await runtime.stop_listening();continue
             pending=next(((token,item) for token,item in runtime.confirmations.items() if item[1]=='console'),None)
             if pending and text.lower() in {'yes','oui','no','non'}:
                 runtime.answer_confirmation(pending[0],text.lower() in {'yes','oui'});continue
@@ -63,12 +65,21 @@ async def run(args):
 def main():
     if hasattr(sys.stdout, 'reconfigure'):sys.stdout.reconfigure(encoding='utf-8',errors='replace')
     parser=argparse.ArgumentParser(description='Jarvis native Windows voice assistant')
+    parser.add_argument('--setup-voice',action='store_true',help='Download and verify the free local English male Piper voice')
     parser.add_argument('--selftest',action='store_true',help='Run real integration diagnostics, with explicit consent for changing actions')
     parser.add_argument('--text',action='store_true',help='Start HUD and typed mode without background microphone/wake')
     parser.add_argument('--no-browser',action='store_true')
     parser.add_argument('--port',type=int,default=8000)
     args=parser.parse_args()
     try:
+        if args.setup_voice:
+            from app.config import Settings
+            from app.voice_setup import setup_voice
+            try: setup_voice(Settings())
+            except Exception as exc:
+                print('Voice setup failed: ' + type(exc).__name__ + ': ' + str(exc))
+                raise SystemExit(1)
+            return
         if args.selftest:
             from app.selftest import selftest
             code=asyncio.run(selftest())

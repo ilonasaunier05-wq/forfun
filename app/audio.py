@@ -97,6 +97,7 @@ class Microphone:
             chunks, started, silent = [], False, 0.0
             deadline = time.monotonic() + wait_timeout
             duration = 0.0
+            voiced = 0.0
             threshold = max(self.noise * 2.5, 0.008)
             while not stop_event.is_set():
                 if not started and time.monotonic() > deadline:
@@ -110,15 +111,19 @@ class Microphone:
                     pre.append(chunk)
                     if level >= threshold:
                         started = True
+                        voiced += len(chunk) / self.sample_rate
                         chunks.extend(pre)
                     continue
                 chunks.append(chunk)
                 duration += len(chunk) / self.sample_rate
+                if level >= threshold: voiced += len(chunk) / self.sample_rate
                 silent = silent + len(chunk) / self.sample_rate if level < threshold else 0
                 if silent >= self.settings.silence_seconds or duration >= max_seconds:
                     break
             if stop_event.is_set():
                 raise InterruptedError('Recording interrupted.')
+            if voiced < 0.24:
+                raise ValueError('Recording too short/noisy for speech. Press F8 and speak a full sentence.')
             data = np.concatenate(chunks)
             pcm = (np.clip(data, -1, 1) * 32767).astype('<i2').tobytes()
             out = io.BytesIO()

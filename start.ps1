@@ -1,4 +1,4 @@
-param([int]$Port = 8000, [switch]$Text, [switch]$Selftest)
+param([int]$Port = 8000, [switch]$Text, [switch]$Selftest, [switch]$SetupVoice)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 if (-not (Test-Path '.venv/Scripts/python.exe')) {
@@ -14,5 +14,6 @@ if (-not (Test-Path '.env')) { Copy-Item '.env.example' '.env' }
 $JarvisArgs = @('main.py', '--port', "$Port")
 if ($Text) { $JarvisArgs += '--text' }
 if ($Selftest) { $JarvisArgs += '--selftest' }
+if ($SetupVoice) { $JarvisArgs += '--setup-voice' }
 & $JarvisPython @JarvisArgs
 exit $LASTEXITCODE

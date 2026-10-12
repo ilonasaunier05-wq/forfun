@@ -7,6 +7,7 @@ import time
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 import unicodedata
@@ -48,7 +49,8 @@ class Speaker:
             except OSError: pass
 
     async def say(self, text, full=False):
-        if time.monotonic() < self.edge_retry_after and time.monotonic() < self.system_retry_after:
+        model = self.settings.private_dir / 'voices' / 'en_GB-alan-medium.onnx'
+        if time.monotonic() < self.system_retry_after and (model.is_file() or time.monotonic() < self.edge_retry_after):
             return  # The first failure is visible in HUD status; do not repeat it every turn.
         text = sanitize_tts(text)
         if not text:
@@ -74,6 +76,9 @@ class Speaker:
                         if chunk['type'] == 'audio':
                             audio.write(chunk['data'])
                 try:
+                    if model.is_file():
+                        await self._system_speech(text)
+                        return
                     if time.monotonic() < self.edge_retry_after:
                         raise RuntimeError('Edge voice temporarily unavailable; using Windows voice.')
                     await asyncio.wait_for(generate(), timeout=6)
@@ -84,6 +89,7 @@ class Speaker:
                     await asyncio.to_thread(self._play, audio.getvalue())
                     self.backend, self.selected_voice = 'edge-tts', self.settings.voice
                 except Exception as exc:
+                    if model.is_file(): raise
                     if self.stop_event.is_set():
                         return
                     self.edge_retry_after = time.monotonic() + 300
@@ -93,12 +99,12 @@ class Speaker:
                 self.speaking = False
                 await self.emit('state', 'idle')
 
-    def _play(self, data):
+    def _play(self, data, format='mp3'):
         os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
         import pygame
         if not pygame.mixer.get_init():
             pygame.mixer.init()
-        pygame.mixer.music.load(io.BytesIO(data), 'mp3')
+        pygame.mixer.music.load(io.BytesIO(data), format)
         pygame.mixer.music.play()
         clock = pygame.time.Clock()
         while pygame.mixer.music.get_busy() and not self.stop_event.is_set():
@@ -107,8 +113,17 @@ class Speaker:
         pygame.mixer.music.unload()
 
     async def _system_speech(self, text):
+        model = (self.settings.private_dir / 'voices' / 'en_GB-alan-medium.onnx').resolve()
+        if not model.is_relative_to(self.settings.notes_dir): raise ValueError('Voice model escapes NOTES_DIR.')
+        local = model.is_file() and model.with_suffix('.onnx.json').is_file()
         if time.monotonic() < self.system_retry_after:
-            raise RuntimeError('Windows voice is unavailable. Conversation remains active; check Windows speech voices and audio output, then restart Jarvis.')
+            raise RuntimeError('Speech backend is temporarily unavailable. Conversation remains active; inspect the voice error in HUD settings.')
+        output = None
+        payload = {'text': text, 'language': self.settings.voice.split('-')[0].lower()}
+        if local:
+            with tempfile.NamedTemporaryFile(dir=model.parent, suffix='.wav', delete=False) as temporary:
+                output = Path(temporary.name)
+            payload.update(backend='piper', model=str(model), output=str(output))
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         process = subprocess.Popen(
             [sys.executable, str(Path(__file__).with_name('system_voice.py'))],
@@ -117,7 +132,7 @@ class Speaker:
         )
         self.process = process
         try:
-            process.stdin.write(json.dumps({'text': text, 'language': self.settings.voice.split('-')[0].lower()}))
+            process.stdin.write(json.dumps(payload))
             process.stdin.close()
             # A blocked COM driver must never retain the conversation lock indefinitely.
             deadline = time.monotonic() + min(45, max(15, len(text.split()) / 2 + 8))
@@ -129,13 +144,15 @@ class Speaker:
                     raise TimeoutError('Windows speech stopped responding. Voice disabled for five minutes; text and microphone remain available.')
                 await asyncio.sleep(0.05)
             if self.stop_event.is_set(): return
-            output = process.stdout.read()
+            response_text = process.stdout.read()
             if process.returncode != 0:
-                try: detail = json.loads(output).get('error', 'Windows speech failed.')
+                try: detail = json.loads(response_text).get('error', 'Windows speech failed.')
                 except (ValueError, TypeError): detail = 'Windows speech process failed.'
                 raise RuntimeError(detail)
-            result = json.loads(output)
-            self.backend, self.selected_voice = 'pyttsx3', result['voice']
+            result = json.loads(response_text)
+            if local:
+                await asyncio.to_thread(self._play, output.read_bytes(), 'wav')
+            self.backend, self.selected_voice = result.get('backend', 'pyttsx3'), result['voice']
             self.last_error = None
         except asyncio.CancelledError:
             raise
@@ -149,6 +166,7 @@ class Speaker:
             for pipe in (process.stdin, process.stdout, process.stderr):
                 if pipe is not None and not pipe.closed: pipe.close()
             self.process = None
+            if output: output.unlink(missing_ok=True)
 
     def close(self):
         self.interrupt()

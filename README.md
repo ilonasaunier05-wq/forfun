@@ -173,3 +173,11 @@ La voix de secours pyttsx3 s’exécute dans un processus séparé ; F9 peut l�
 ### Confirmation après une demande vocale
 
 Les actions vocales proposent aussi Confirm/Cancel à l’écran. Dire yes/no reste disponible ; silence, transcription ambiguë ou micro indisponible laissent la confirmation visuelle ouverte au lieu de prétendre que l’utilisateur a refusé. Aucune action ne part sans confirmation. Les textes provisoires produits avant un appel outil sont retirés, puis le résultat réel est affiché. Une voix indisponible ne répète plus sa même erreur à chaque réponse pendant son délai de reprise.
+
+### Free English male voice without Windows speech packages
+
+Run `./start.ps1 -SetupVoice` once. It installs Piper 1.8.0 (Windows x64 wheel available) and downloads the fixed English UK Alan medium voice from the official rhasspy/piper-voices repository on Hugging Face. The medium voice is approximately 60–70 MB, plus the inference dependencies. HTTPS verification stays enabled; downloads are checked against upstream file sizes and MD5 integrity metadata, then the actual model is loaded and a test speech WAV is generated. Files stay under NOTES_DIR/.private/voices. Subsequent starts prefer this local voice: no Fish Audio key, paid voice API, Windows speech package or Edge WebSocket is needed. This is an English male voice, not a clone of the actor. Piper uses GPL-3.0; check the upstream model card for the voice license when redistributing.
+
+After setup, run `./start.ps1`, then Voice Test. Successful WAV generation does not prove your physical speakers played it. The cloud's network proxy blocks huggingface.co (actual setup returned HTTP 403), so model download, generation and audible speech were not verified here. Python package installation and import were verified.
+
+Listening now starts only after F8/the mic button or explicit enabling of double clap. STOP MICRO + VOIX/F9 closes the microphone and stops wake listening and active voice requests. Automatic follow-up listening is opt-in via VOICE_FOLLOWUP_SECONDS=30 (default 0) to avoid transcribing incidental sound. Recordings with less than 240 ms above the speech threshold are rejected before Whisper; this is a basic energy gate, not a guarantee against all transcription hallucinations.

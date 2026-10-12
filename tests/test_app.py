@@ -126,6 +126,14 @@ class ApiTests(unittest.TestCase):
         page=self.client.get('/');self.assertEqual(page.status_code,200);self.assertIn('circle cx="300"',page.text)
         self.assertIn('frame-ancestors',page.headers['content-security-policy'])
         cfg=self.client.get('/api/config').json();self.assertEqual(cfg['voice'],'en-GB-RyanNeural');self.assertIn('web_search',cfg['tools']);self.assertNotIn('key',cfg)
+    def test_stop_disables_listening_without_stopping_server(self):
+        result = self.client.post('/api/voice/stop',json={})
+        self.assertEqual(result.status_code,200)
+        self.assertFalse(result.json()['listening'])
+        self.assertTrue(self.runtime.wake_stop.is_set())
+        self.assertFalse(self.client.get('/api/status').json()['voice_active'])
+        self.assertEqual(self.client.get('/api/config').status_code,200)
+
     def test_actual_missing_key_error_no_fake_reply(self):
         sid=self.client.post('/api/sessions',json={}).json()['id']
         response=self.client.post('/api/chat',json={'session':sid,'text':'Hello','speak':False})

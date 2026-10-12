@@ -35,6 +35,7 @@ class Settings:
     clap_sensitivity: float = field(default_factory=lambda: float(os.getenv('CLAP_SENSITIVITY', '6')))
     silence_seconds: float = field(default_factory=lambda: float(os.getenv('SILENCE_SECONDS', '0.9')))
     config_file: Path = field(default_factory=lambda: ROOT / 'config.yaml')
+    followup_seconds: float = field(default_factory=lambda: float(os.getenv('VOICE_FOLLOWUP_SECONDS', '0')))
     tools_enabled: bool = True
 
     def __post_init__(self):
@@ -44,6 +45,8 @@ class Settings:
         self.memory_file = self.notes_dir / 'memory.md'
         self.private_dir = self.notes_dir / '.private'
         self.tz = ZoneInfo(self.timezone)
+        if not 0 <= self.followup_seconds <= 60:
+            raise ValueError('VOICE_FOLLOWUP_SECONDS must be between 0 and 60.')
         if self.language not in {'en', 'fr'}:
             raise ValueError('JARVIS_LANGUAGE must be en or fr.')
         self.voice = self.voice or 'en-GB-RyanNeural'

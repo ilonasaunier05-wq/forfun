@@ -102,7 +102,7 @@ def create_app(runtime=None):
 
     @app.get('/api/config')
     def config():
-        return {'speak_replies':rt.speak_replies,'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
+        return {'local_voice_ready':(settings.private_dir/'voices'/'en_GB-alan-medium.onnx').is_file(),'speak_replies':rt.speak_replies,'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
 
     @app.get('/api/status')
     def status():
@@ -208,7 +208,7 @@ def create_app(runtime=None):
             await asyncio.to_thread(rt.mic.close)
             settings.input_device = body.device
         try:
-            await rt.start_voice()
+            await asyncio.to_thread(rt.mic.start)
         except Exception as exc:
             rt.microphone_error = rt.safe_error(exc)
             raise ValueError(rt.microphone_error) from exc
@@ -222,7 +222,9 @@ def create_app(runtime=None):
             try:
                 text=await rt.record_once();await rt.native_turn(text,'voice')
             except Exception as exc:await rt.emit('error',rt.safe_error(exc))
-        launch(once());return {'started':True}
+        if rt.audio_tasks: return {'started':False,'message':'A voice request is already active.'}
+        task=asyncio.create_task(once());rt.audio_tasks.add(task);task.add_done_callback(rt.audio_tasks.discard)
+        return {'started':True}
     @app.post('/api/voice/wake')
     async def wake(body: Switch):
         if body.enabled:
@@ -231,7 +233,9 @@ def create_app(runtime=None):
             await rt.stop_voice()
         return {'enabled':bool(rt.voice_task and not rt.voice_task.done())}
     @app.post('/api/voice/stop')
-    async def stop():rt.speaker.interrupt();return {'ok':True}
+    async def stop():
+        await rt.stop_listening()
+        return {'ok':True,'listening':False}
     @app.post('/api/voice/speak')
     async def speak(body: Speak):
         launch(rt.soft_say(body.text));return {'started':True}

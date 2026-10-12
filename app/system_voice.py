@@ -5,6 +5,13 @@ import sys
 
 
 def speak(payload):
+    if payload.get('backend') == 'piper':
+        from piper import PiperVoice
+        import wave
+        voice = PiperVoice.load(payload['model'])
+        with wave.open(payload['output'], 'wb') as wav:
+            voice.synthesize_wav(payload['text'], wav)
+        return {'voice': 'Alan · English UK (Piper)', 'backend': 'piper'}
     import pyttsx3
     engine = pyttsx3.init()
     language = payload['language']
