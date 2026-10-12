@@ -102,11 +102,11 @@ def create_app(runtime=None):
 
     @app.get('/api/config')
     def config():
-        return {'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
+        return {'speak_replies':rt.speak_replies,'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
 
     @app.get('/api/status')
     def status():
-        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'mic_device':rt.mic.device_name,'mic_noise':rt.mic.noise,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice}
+        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'mic_device':rt.mic.device_name,'mic_noise':rt.mic.noise,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice,'tts_error':rt.speaker.last_error}
 
     @app.get('/api/devices')
     async def devices(): return await rt.tools.devices()

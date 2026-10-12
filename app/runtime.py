@@ -148,7 +148,7 @@ class Runtime:
                     yield event
                 self.store.message(sid, 'assistant', answer)
                 yield {'type': 'done', 'data': True}
-                if speak and answer:
+                if speak and self.speak_replies and answer:
                     await self.soft_say(answer)
             except asyncio.CancelledError:
                 self.speaker.interrupt()

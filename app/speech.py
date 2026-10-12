@@ -4,7 +4,10 @@ import os
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+import json
+import subprocess
+import sys
+from pathlib import Path
 os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 import unicodedata
 import edge_tts
@@ -30,21 +33,19 @@ class Speaker:
         self.speaking = False
         self.backend = None
         self.selected_voice = None
-        self.engine = None
-        self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="JarvisSAPI")
+        self.process = None
+        self.system_retry_after = 0.0
+        self.last_error = None
         self.generation = 0
         self.edge_retry_after = 0.0
 
     def interrupt(self):
         self.generation += 1
         self.stop_event.set()
-        try:
-            import pygame
-            if pygame.mixer.get_init():
-                pygame.mixer.music.stop()
-        except (ImportError, RuntimeError):
-            pass
-        # The SAPI worker observes stop_event and calls engine.stop on its own COM thread.
+        # The playback worker observes stop_event; never call audio drivers on the UI/server thread.
+        if self.process is not None and self.process.poll() is None:
+            try: self.process.kill()
+            except OSError: pass
 
     async def say(self, text, full=False):
         text = sanitize_tts(text)
@@ -85,7 +86,7 @@ class Speaker:
                         return
                     self.edge_retry_after = time.monotonic() + 300
                     await self.emit('notice', 'Edge TTS failed (' + type(exc).__name__ + '); trying an installed male system voice.')
-                    await asyncio.get_running_loop().run_in_executor(self.worker, self._system_speech, text)
+                    await self._system_speech(text)
             finally:
                 self.speaking = False
                 await self.emit('state', 'idle')
@@ -103,45 +104,49 @@ class Speaker:
         pygame.mixer.music.stop()
         pygame.mixer.music.unload()
 
-    def _system_speech(self, text):
-        import pyttsx3
-        engine = pyttsx3.init()
-        voices = engine.getProperty('voices')
-        pattern = r'\b(?:Paul|Henri|Thomas|David|Mark|Ryan|Daniel|George|James|Male)\b'
-        language = self.settings.voice.split('-')[0].lower()
-        candidates = []
-        for voice in voices:
-            desc = voice.name + ' ' + voice.id
-            langs = ' '.join(str(x) for x in getattr(voice, 'languages', []))
-            if ((getattr(voice, 'gender', '') or '').lower() == 'male' or re.search(pattern, desc, re.I)):
-                candidates.append((voice, language in langs.lower() or ('french' in desc.lower() if language == 'fr' else 'english' in desc.lower())))
-        selected = next((v for v, matching in candidates if matching), None)
-        if not selected:
-            raise RuntimeError('No installed male voice for the selected language. Add a male speech voice in Windows Settings > Time & language > Speech.')
-        self.engine = engine
-        engine.setProperty('voice', selected.id)
-        engine.setProperty('rate', 175)
-        started = False
+    async def _system_speech(self, text):
+        if time.monotonic() < self.system_retry_after:
+            raise RuntimeError('Windows voice is unavailable. Conversation remains active; check Windows speech voices and audio output, then restart Jarvis.')
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        process = subprocess.Popen(
+            [sys.executable, str(Path(__file__).with_name('system_voice.py'))],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding='utf-8', creationflags=flags,
+        )
+        self.process = process
         try:
-            if self.stop_event.is_set(): return
-            engine.say(text)
-            engine.startLoop(False)
-            started = True
-            deadline = time.monotonic() + 90
-            while engine.isBusy():
+            process.stdin.write(json.dumps({'text': text, 'language': self.settings.voice.split('-')[0].lower()}))
+            process.stdin.close()
+            # A blocked COM driver must never retain the conversation lock indefinitely.
+            deadline = time.monotonic() + min(45, max(15, len(text.split()) / 2 + 8))
+            while process.poll() is None:
                 if self.stop_event.is_set():
-                    engine.stop()
-                    break
-                if time.monotonic() > deadline:
-                    raise RuntimeError('System TTS playback timeout.')
-                engine.iterate()
-                time.sleep(0.02)
-            self.backend, self.selected_voice = 'pyttsx3', selected.name
+                    process.kill()
+                    return
+                if time.monotonic() >= deadline:
+                    raise TimeoutError('Windows speech stopped responding. Voice disabled for five minutes; text and microphone remain available.')
+                await asyncio.sleep(0.05)
+            if self.stop_event.is_set(): return
+            output = process.stdout.read()
+            if process.returncode != 0:
+                try: detail = json.loads(output).get('error', 'Windows speech failed.')
+                except (ValueError, TypeError): detail = 'Windows speech process failed.'
+                raise RuntimeError(detail)
+            result = json.loads(output)
+            self.backend, self.selected_voice = 'pyttsx3', result['voice']
+            self.last_error = None
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.last_error = str(exc)
+            self.system_retry_after = time.monotonic() + 300
+            raise
         finally:
-            engine.stop()
-            if started: engine.endLoop()
-            self.engine = None
+            if process.poll() is None: process.kill()
+            await asyncio.to_thread(process.wait, 3)
+            for pipe in (process.stdin, process.stdout, process.stderr):
+                if pipe is not None and not pipe.closed: pipe.close()
+            self.process = None
 
     def close(self):
         self.interrupt()
-        self.worker.shutdown(wait=True, cancel_futures=True)

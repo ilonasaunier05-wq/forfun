@@ -10,6 +10,7 @@ from app.main import create_app
 async def run(args):
     import uvicorn
     runtime=Runtime()
+    runtime.speak_replies = not args.text
     runtime.loop=asyncio.get_running_loop()
     server=uvicorn.Server(uvicorn.Config(create_app(runtime),host='127.0.0.1',port=args.port,proxy_headers=False,log_level='warning',timeout_graceful_shutdown=5))
     # Let the root handle Ctrl+C; Uvicorn owns cleanup through its lifespan.
