@@ -123,7 +123,8 @@ class Runtime:
         await self.emit('notice', 'Confirm on screen, or say yes/no when listening. Silence does not approve or decline the action.')
         try:
             if future.done() or stop.is_set(): return
-            await self.soft_say(prompt + ' Say yes or no, or confirm on screen.', full=True)
+            spoken_prompt = 'A file change is proposed. Review the diff on screen.' if prompt.startswith('Confirm file change') else prompt[:500]
+            await self.soft_say(spoken_prompt + ' Say yes or no, or confirm on screen.', full=True)
             if future.done() or stop.is_set(): return
             await self.emit('state', 'listening')
             audio = await self.capture_audio(8, 8, stop)

@@ -102,7 +102,7 @@ def create_app(runtime=None):
 
     @app.get('/api/config')
     def config():
-        return {'local_voice_ready':(settings.private_dir/'voices'/'en_GB-alan-medium.onnx').is_file(),'speak_replies':rt.speak_replies,'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
+        return {'local_voice_ready':(settings.private_dir/'voices'/'en_GB-alan-medium.onnx').is_file(),'speak_replies':rt.speak_replies,'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'projects_write_dir':str(settings.projects_write_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
 
     @app.get('/api/status')
     def status():

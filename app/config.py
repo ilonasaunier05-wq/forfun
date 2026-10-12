@@ -16,6 +16,7 @@ def local_path(name, default):
 class Settings:
     notes_dir: Path = field(default_factory=lambda: local_path('NOTES_DIR', ROOT / 'data'))
     projects_dir: Path = field(default_factory=lambda: local_path('PROJECTS_DIR', ROOT))
+    projects_write_dir: Path = field(default_factory=lambda: local_path('PROJECTS_WRITE_DIR', ROOT / 'JarvisProjects'))
     key: str = field(default_factory=lambda: os.getenv('GROQ_API_KEY', ''), repr=False)
     model: str = field(default_factory=lambda: os.getenv('GROQ_MODEL', 'openai/gpt-oss-20b'))
     fallback_model: str = field(default_factory=lambda: os.getenv('GROQ_FALLBACK_MODEL', 'llama-3.1-8b-instant'))
@@ -41,6 +42,7 @@ class Settings:
     def __post_init__(self):
         self.notes_dir = Path(self.notes_dir).resolve()
         self.projects_dir = Path(self.projects_dir).resolve()
+        self.projects_write_dir = Path(self.projects_write_dir).resolve()
         self.data_dir = self.notes_dir
         self.memory_file = self.notes_dir / 'memory.md'
         self.private_dir = self.notes_dir / '.private'

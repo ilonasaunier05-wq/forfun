@@ -103,6 +103,19 @@ async def selftest():
                 if expected not in file.read_text(encoding='utf-8'):raise RuntimeError('Written content did not read back correctly.')
                 return {'status':'written_and_read_back','path':str(file)}
             await check(name+' real Markdown write/read-back',write)
+        workspace_test = 'Selftest-' + datetime.now().strftime('%Y%m%d-%H%M%S')
+        await check('create_directory real confirmed workspace directory',lambda:real_tool('create_directory',{'path':workspace_test}))
+        await check('create_file real confirmed workspace write',lambda:real_tool('create_file',{'path':workspace_test+'/note.txt','content':'Original self-test file.\n'}))
+        async def project_edit():
+            path = runtime.settings.projects_write_dir / workspace_test / 'note.txt'
+            if not path.is_file(): raise RuntimeError('NOT RUN: create_file not confirmed or failed.')
+            read = await real_tool('read_file',{'path':str(path)})
+            result = await real_tool('edit_file',{'path':workspace_test+'/note.txt','old_text':'Original self-test file.','new_text':'Edited self-test file.','expected_sha256':read['sha256']})
+            if path.read_text(encoding='utf-8') != 'Edited self-test file.\n': raise RuntimeError('Edited content did not read back.')
+            backup = __import__('pathlib').Path(result['backup'])
+            if backup.read_text(encoding='utf-8') != 'Original self-test file.\n': raise RuntimeError('Backup did not preserve the original.')
+            return result
+        await check('edit_file real confirmed change/backup/read-back',project_edit)
         async def observed_action(name,args,question):
             result=await real_tool(name,args)
             try:observed=input(question+' Type yes/oui: ').strip().lower()

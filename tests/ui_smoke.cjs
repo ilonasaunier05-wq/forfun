@@ -1,11 +1,11 @@
 // Real local backend + Chromium; no voice, provider, or hardware responses are fabricated.
 const {chromium}=require('playwright');
 const {spawn}=require('child_process');
-const {mkdtempSync,rmSync}=require('fs');
+const {mkdtempSync,rmSync,readFileSync}=require('fs');
 const {tmpdir}=require('os');const {join}=require('path');const assert=require('assert/strict');
 const directory=mkdtempSync(join(tmpdir(),'jarvis-hud-'));
 const python=process.platform==='win32'?'.venv/Scripts/python.exe':'.venv/bin/python';
-const server=spawn(python,['main.py','--text','--no-browser','--port','8765'],{env:{...process.env,NOTES_DIR:directory,GROQ_API_KEY:'',JARVIS_PASSWORD:'ui-test-password'},stdio:['pipe','pipe','pipe']});
+const server=spawn(python,['main.py','--text','--no-browser','--port','8765'],{env:{...process.env,NOTES_DIR:join(directory,'notes'),PROJECTS_WRITE_DIR:join(directory,'workspace'),GROQ_API_KEY:'',JARVIS_PASSWORD:'ui-test-password'},stdio:['pipe','pipe','pipe']});
 let logs='';server.stderr.on('data',d=>logs+=d);server.stdout.on('data',d=>logs+=d);
 (async()=>{let browser;try{
  for(let i=0;i<120;i++){try{if((await fetch('http://localhost:8765/')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));if(i===119)throw Error(logs);}
@@ -21,6 +21,14 @@ let logs='';server.stderr.on('data',d=>logs+=d);server.stdout.on('data',d=>logs+
  await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('remember'));await page.click('#confirm-yes');
  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Saved to memory.md'));
  await page.click('#memory-open');await page.locator('#memory-dialog').waitFor({state:'visible'});assert((await page.locator('#memory-markdown').innerText()).includes('Real browser-confirmed'));await page.click('[data-close="memory-dialog"]');
+ await page.evaluate(async()=>{const r=await fetch('/api/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'create_file',arguments:{path:'School/browser.txt',content:'Original browser file\n'}})});if(!r.ok)throw Error(await r.text());});
+ await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('+Original browser file'));await page.click('#confirm-yes');
+ await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Actual file write verified'));
+ const target=join(directory,'workspace','School','browser.txt');assert.equal(readFileSync(target,'utf8'),'Original browser file\n');
+ const expected=require('crypto').createHash('sha256').update(readFileSync(target)).digest('hex');
+ await page.evaluate(async hash=>{const r=await fetch('/api/tool',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'edit_file',arguments:{path:'School/browser.txt',old_text:'Original browser file',new_text:'Updated browser file',expected_sha256:hash}})});if(!r.ok)throw Error(await r.text());},expected);
+ await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('-Original browser file'));await page.click('#confirm-yes');
+ await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('browser.txt.bak'));assert.equal(readFileSync(target,'utf8'),'Updated browser file\n');
  await page.click('#emergency');await page.waitForFunction(()=>document.querySelector('#tools-status').textContent.includes('disabled'));
  for(const [name,width,height] of [['desktop',1440,1000],['tablet',800,1280],['phone',390,844]]){await page.setViewportSize({width,height});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),name+' overflow');assert(await page.locator('#reactor svg').isVisible());}
  assert.deepEqual(errors,[]);const stopped=new Promise(r=>server.once('exit',r));server.stdin.write('/quit\n');await Promise.race([stopped,new Promise((_,reject)=>setTimeout(()=>reject(Error('Quit hung with HUD stream still connected')),7000))]);console.log('PASS: real authenticated HUD, native voice configuration, missing-key failure, actually confirmed Markdown write/read-back, emergency stop, desktop/tablet/phone. No hardware/API success is inferred.');

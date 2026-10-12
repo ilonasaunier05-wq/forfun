@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import os
 import platform
@@ -13,6 +14,7 @@ import dateparser
 import httpx
 import psutil
 from ddgs import DDGS
+from .project_files import ProjectFiles, digest
 
 SCENE_NAMES = ('Dark Feminine', 'Study Mode', 'Gaming Mode', 'Welcome Home', 'Good Night')
 
@@ -27,20 +29,25 @@ TOOL_SCHEMAS = [
     schema('remember', 'Append an explicitly requested memory after confirmation. Never save personal facts silently.', {'fact': 'Fact explicitly requested by the user'}),
     schema('add_note', 'Append a note in the configured notes directory after confirmation.', {'text': 'Note content'}),
     schema('add_task', 'Append a task in the configured notes directory after confirmation.', {'text': 'Task description'}),
-    schema('list_files', 'List readable project files confined to PROJECTS_DIR; hides credential/internal files.', {}),
-    schema('read_file', 'Read a text/code/PDF file within PROJECTS_DIR; returns page or line numbers and truncation notices.', {'path': 'Relative project path, or absolute path within PROJECTS_DIR'}),
+    schema('list_files', 'List readable files in PROJECTS_DIR and editable files in PROJECTS_WRITE_DIR; hides credential/internal files.', {}),
+    schema('read_file', 'Read a text/code/PDF file inside PROJECTS_DIR or PROJECTS_WRITE_DIR; returns SHA-256, line/page numbers and truncation notices.', {'path': 'Relative project path, or absolute path within PROJECTS_DIR'}),
+    schema('create_file', 'Create a UTF-8 text/code file only in PROJECTS_WRITE_DIR. Show content preview and require confirmation. Never overwrite.', {'path':'Relative path inside writable workspace', 'content':'Complete new UTF-8 file content; may be empty'}),
+    schema('edit_file', 'Replace one exact unique passage in a writable text file, after diff preview and confirmation. Read the file first for its SHA-256. Creates a backup.', {'path':'Relative path inside writable workspace', 'old_text':'Exact passage appearing once', 'new_text':'Replacement passage; may be empty', 'expected_sha256':'Full SHA-256 from the most recent read_file result'}),
+    schema('create_directory', 'Create a subdirectory only inside PROJECTS_WRITE_DIR, after confirmation.', {'path':'Relative directory path inside writable workspace'}),
     schema('open_app', 'Launch an application from config.yaml allowlist after confirmation; no shell.', {'name': 'Allowlisted app name'}),
     schema('pc_action', 'Windows lock/sleep/volume_up/volume_down/mute_toggle, always confirmed.', {'name': 'One fixed Windows action'}),
     schema('add_calendar_event', 'Read back event title and resolved dates; require confirmation before creating and verifying a Google Calendar event.', {'title': 'Event title', 'start': 'ISO date or relative phrase, e.g. Friday at 3pm', 'end': 'ISO date or relative phrase, e.g. Friday at 4pm'}),
     schema('ha_call_service', 'Call an allowlisted Home Assistant light/switch/scene service after confirmation; unavailable when not configured.', {'domain': 'light, switch or scene', 'service': 'turn_on or turn_off', 'entity_id': 'Exact allowlisted HA entity ID'}),
     schema('activate_scene', 'Run a configured scene after reviewing its complete plan; unavailable when no operations configured.', {'name': 'One configured scene name'}),
 ]
-CHANGING = {'open_url', 'remember', 'add_note', 'add_task', 'open_app', 'pc_action', 'add_calendar_event', 'ha_call_service', 'activate_scene'}
+PROJECT_WRITES = {'create_file', 'edit_file', 'create_directory'}
+CHANGING = PROJECT_WRITES | {'open_url', 'remember', 'add_note', 'add_task', 'open_app', 'pc_action', 'add_calendar_event', 'ha_call_service', 'activate_scene'}
 
 class ToolRegistry:
     def __init__(self, settings, store=None):
         self.settings, self.store = settings, store
         self.write_lock = threading.Lock()
+        self.project_files = ProjectFiles(settings)
 
     def confined_write(self, name):
         root = self.settings.notes_dir.resolve()
@@ -59,7 +66,11 @@ class ToolRegistry:
     def project_path(self, value):
         root = self.settings.projects_dir.resolve()
         raw = Path(value)
+        writable = self.settings.projects_write_dir
+        if not raw.is_absolute() and (writable / raw).exists():
+            root = writable
         path = (raw if raw.is_absolute() else root / raw).resolve(strict=True)
+        if path.is_relative_to(writable): root = writable
         if not path.is_relative_to(root):
             raise ValueError('Path is outside PROJECTS_DIR.')
         relative = path.relative_to(root)
@@ -74,10 +85,15 @@ class ToolRegistry:
         if name not in definitions or not isinstance(args, dict):
             raise ValueError('Unknown tool or invalid arguments.')
         shape = definitions[name]
-        if set(args) != set(shape['properties']) or any(not isinstance(v, str) or not v.strip() or len(v) > 12000 for v in args.values()):
+        empty_allowed = {'content'} if name == 'create_file' else {'new_text'} if name == 'edit_file' else set()
+        if set(args) != set(shape['properties']) or any(not isinstance(v, str) or (not v.strip() and k not in empty_allowed) or len(v) > 12000 for k,v in args.items()):
             raise ValueError('Invalid tool arguments.')
         if any(secret and any(secret in value for value in args.values()) for secret in (self.settings.key,self.settings.ha_token)):
             raise ValueError('Credentials must stay in private configuration; do not include them in tool arguments.')
+        if name in PROJECT_WRITES:
+            self.project_files.path(args['path'], name == 'create_directory')
+            if name == 'edit_file' and not re.fullmatch(r'[a-f0-9]{64}',args['expected_sha256']):
+                raise ValueError('Read the file first to obtain a valid SHA-256.')
         if name == 'open_url':
             u = urlsplit(args['url'])
             if u.scheme not in {'http', 'https'} or not u.hostname or u.username or u.password:
@@ -130,16 +146,23 @@ class ToolRegistry:
             return {'status': 'unavailable', 'message': 'Home Assistant is disabled. Set HA_URL, HA_TOKEN and HA_ENTITIES in .env, then restart.'}
         if name == 'add_calendar_event' and not self.settings.credentials_file.is_file() and not self.confined_write('.private/google-token.json').is_file():
             return {'status': 'unavailable', 'message': 'Google Calendar: enable Calendar API, create OAuth Desktop credentials, download credentials.json beside main.py (or set GOOGLE_CREDENTIALS_FILE), then restart. No event was created.'}
+        proposal = await asyncio.to_thread(self.project_files.prepare, name, args) if name in PROJECT_WRITES else None
         event = self.resolve_event(args) if name == 'add_calendar_event' else None
         if name in CHANGING:
-            if not await confirm(self.confirmation_text(name, args, event)):
+            prompt = ('Confirm file change inside ' + str(self.settings.projects_write_dir) + '?\n' + proposal['preview']) if proposal else self.confirmation_text(name, args, event)
+            if not await confirm(prompt):
                 result = {'status': 'cancelled', 'message': 'Action not confirmed (cancelled or confirmation expired); no action performed.'}
                 if self.store: self.store.log_action({'tool': name, 'arguments': args}, result)
                 return result
             if not self.settings.tools_enabled:
                 raise ValueError('Tools disabled before execution.')
         try:
-            result = await self._execute(name, args, event)
+            if proposal:
+                def save_project():
+                    with self.write_lock: return self.project_files.apply(name,args,proposal)
+                result = await asyncio.to_thread(save_project)
+            else:
+                result = await self._execute(name, args, event)
         except Exception as exc:
             if self.store: self.store.log_action({'tool': name, 'arguments': args}, {'status': 'failed', 'error': type(exc).__name__})
             raise
@@ -181,23 +204,37 @@ class ToolRegistry:
                     if len(files) == 200:
                         truncated = True; break
                 if truncated: break
-            return {'root': str(root), 'files': sorted(files), 'truncated': truncated}
+            workspace = self.settings.projects_write_dir
+            writable_files = []
+            if workspace.is_dir():
+                for parent, dirs, names in os.walk(workspace, followlinks=False):
+                    dirs[:] = [d for d in dirs if not d.startswith('.') and d not in {'private','node_modules','__pycache__'}]
+                    for filename in names:
+                        try:
+                            candidate = self.project_files.path(str((Path(parent)/filename).relative_to(workspace)))
+                            writable_files.append(str(candidate.relative_to(workspace)))
+                        except (ValueError,OSError): continue
+                        if len(writable_files) >= 200: break
+                    if len(writable_files) >= 200: break
+            return {'root': str(root), 'files': sorted(files), 'truncated': truncated, 'writable_root': str(workspace), 'writable_files': sorted(writable_files), 'writable_truncated': len(writable_files)>=200}
         if name == 'read_file':
             path = self.project_path(args['path'])
             if path.stat().st_size > 20_000_000:
                 raise ValueError('File exceeds 20 MB. Split it before reading.')
+            raw_data = path.read_bytes()
             if path.suffix.lower() == '.pdf':
                 from pypdf import PdfReader
-                reader = PdfReader(path)
+                reader = PdfReader(io.BytesIO(raw_data))
                 text = '\n'.join(f'Page {i + 1}:\n{p.extract_text() or "[No text layer; OCR required]"}' for i, p in enumerate(reader.pages[:30]))
                 total = len(reader.pages)
             else:
-                with path.open('r', encoding='utf-8', errors='strict') as file:
+                with io.StringIO(raw_data.decode('utf-8')) as file:
                     text = ''.join(f'{i}: {line}' for i, line in enumerate(file, 1))
                 total = text.count('\n')
             for secret in (self.settings.key, self.settings.ha_token):
                 if secret: text = text.replace(secret, '[redacted]')
-            return {'path': str(path.relative_to(self.settings.projects_dir)), 'text': text[:16000], 'total_pages_or_lines': total, 'truncated': len(text) > 16000 or path.suffix.lower() == '.pdf' and total > 30}
+            root = self.settings.projects_write_dir if path.is_relative_to(self.settings.projects_write_dir) else self.settings.projects_dir
+            return {'path': str(path.relative_to(root)), 'root': str(root), 'absolute_path': str(path), 'sha256': digest(raw_data), 'text': text[:16000], 'total_pages_or_lines': total, 'truncated': len(text) > 16000 or path.suffix.lower() == '.pdf' and total > 30}
         if name == 'open_app':
             if platform.system() != 'Windows': raise RuntimeError('App launching requires the Windows host.')
             spec = self.settings.app_config['apps'][args['name']]

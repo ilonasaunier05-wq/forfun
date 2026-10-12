@@ -15,3 +15,6 @@ memory.md
 *.sqlite3-shm
 Notes.md
 Tasks.md
+
+JarvisProjects/
+.jarvis-backups/
