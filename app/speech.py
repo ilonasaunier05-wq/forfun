@@ -33,6 +33,7 @@ class Speaker:
         self.engine = None
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="JarvisSAPI")
         self.generation = 0
+        self.edge_retry_after = 0.0
 
     def interrupt(self):
         self.generation += 1
@@ -70,7 +71,9 @@ class Speaker:
                         if chunk['type'] == 'audio':
                             audio.write(chunk['data'])
                 try:
-                    await asyncio.wait_for(generate(), timeout=25)
+                    if time.monotonic() < self.edge_retry_after:
+                        raise RuntimeError('Edge voice temporarily unavailable; using Windows voice.')
+                    await asyncio.wait_for(generate(), timeout=6)
                     if self.stop_event.is_set():
                         return
                     if not audio.getbuffer().nbytes:
@@ -80,6 +83,7 @@ class Speaker:
                 except Exception as exc:
                     if self.stop_event.is_set():
                         return
+                    self.edge_retry_after = time.monotonic() + 300
                     await self.emit('notice', 'Edge TTS failed (' + type(exc).__name__ + '); trying an installed male system voice.')
                     await asyncio.get_running_loop().run_in_executor(self.worker, self._system_speech, text)
             finally:
@@ -104,7 +108,7 @@ class Speaker:
         engine = pyttsx3.init()
         voices = engine.getProperty('voices')
         pattern = r'\b(?:Paul|Henri|Thomas|David|Mark|Ryan|Daniel|George|James|Male)\b'
-        language = self.settings.language
+        language = self.settings.voice.split('-')[0].lower()
         candidates = []
         for voice in voices:
             desc = voice.name + ' ' + voice.id

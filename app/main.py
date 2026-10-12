@@ -34,6 +34,8 @@ class Speak(Input):
 class VoiceSettings(Input):
     language: str
     voice: str = ''
+class MicrophoneSettings(Input):
+    device: str = Field(default='', max_length=200)
 class Memory(Input):
     content: str = Field(min_length=1, max_length=4000)
     category: str = 'Preferences'
@@ -100,11 +102,11 @@ def create_app(runtime=None):
 
     @app.get('/api/config')
     def config():
-        return {'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
+        return {'model':settings.model,'fallback_model':settings.fallback_model,'key_configured':bool(settings.key),'language':settings.language,'voice':settings.voice,'input_device':settings.input_device,'notes_dir':str(settings.notes_dir),'projects_dir':str(settings.projects_dir),'apps':list(settings.app_config.get('apps',{})),'tools':[x['function']['name'] for x in TOOL_SCHEMAS],'categories':['Profile','Preferences','Home','Projects','Routines'],'scenes':{name:bool(plan.get('home') or plan.get('pc')) for name,plan in rt.tools.scenes().items()}}
 
     @app.get('/api/status')
     def status():
-        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice}
+        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'mic_device':rt.mic.device_name,'mic_noise':rt.mic.noise,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice}
 
     @app.get('/api/devices')
     async def devices(): return await rt.tools.devices()
@@ -191,6 +193,27 @@ def create_app(runtime=None):
             finally:rt.listeners.discard(q)
         return StreamingResponse(stream(),media_type='text/event-stream',headers={'X-Accel-Buffering':'no'})
 
+    @app.get('/api/voice/devices')
+    async def microphone_devices():
+        return await asyncio.to_thread(rt.mic.devices)
+    @app.post('/api/voice/device')
+    async def microphone_device(body: MicrophoneSettings):
+        if rt.turn_lock.locked() or rt.audio_tasks:
+            raise ValueError('Finish the current conversation before changing microphone.')
+        devices = await asyncio.to_thread(rt.mic.devices)
+        if body.device and body.device not in {str(d['id']) for d in devices}:
+            raise ValueError('Choose a microphone from the device list.')
+        await rt.stop_voice()
+        async with rt.mic_lock:
+            await asyncio.to_thread(rt.mic.close)
+            settings.input_device = body.device
+        try:
+            await rt.start_voice()
+        except Exception as exc:
+            rt.microphone_error = rt.safe_error(exc)
+            raise ValueError(rt.microphone_error) from exc
+        return {'device': body.device, 'name': rt.mic.device_name}
+
     @app.post('/api/voice/listen')
     async def listen():
         if rt.voice_task and not rt.voice_task.done():
@@ -205,8 +228,7 @@ def create_app(runtime=None):
         if body.enabled:
             await rt.start_voice()
         elif rt.voice_task:
-            rt.voice_task.cancel();rt.wake.set()
-            await asyncio.gather(rt.voice_task,return_exceptions=True);rt.voice_task=None
+            await rt.stop_voice()
         return {'enabled':bool(rt.voice_task and not rt.voice_task.done())}
     @app.post('/api/voice/stop')
     async def stop():rt.speaker.interrupt();return {'ok':True}
@@ -217,7 +239,7 @@ def create_app(runtime=None):
     async def voice_settings(body: VoiceSettings):
         if body.language not in {'en','fr'}:raise ValueError('Language must be en or fr.')
         if body.voice and not body.voice.endswith('Neural'):raise ValueError('Supply an Edge Neural voice name.')
-        settings.language=body.language;settings.voice=body.voice or ('fr-FR-HenriNeural' if body.language=='fr' else 'en-GB-RyanNeural')
+        settings.language=body.language;settings.voice=body.voice or 'en-GB-RyanNeural'
         return {'language':settings.language,'voice':settings.voice}
     @app.get('/')
     def index():return FileResponse(ROOT/'ui'/'index.html')

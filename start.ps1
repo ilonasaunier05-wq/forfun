@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 if (-not (Test-Path '.venv/Scripts/python.exe')) {
     if (Get-Command py -ErrorAction SilentlyContinue) { py -3.11 -m venv .venv }
-    elseif (Get-Command python -ErrorAction SilentlyContinue) { python -m venv .venv }
-    else { throw 'Installe Python 3.11 avec Add Python to PATH, puis rouvre PowerShell.' }
+    if (-not (Test-Path '.venv/Scripts/python.exe') -and (Get-Command python -ErrorAction SilentlyContinue)) { python -m venv .venv }
+    if (-not (Test-Path '.venv/Scripts/python.exe')) { throw 'Installe Python 3.11 ou 3.12 avec Add Python to PATH, puis rouvre PowerShell.' }
     if ($LASTEXITCODE -ne 0) { throw 'Creation de .venv impossible. Installe Python 3.11 ou utilise python -m venv .venv.' }
 }
 $JarvisPython = Join-Path $PSScriptRoot '.venv/Scripts/python.exe'

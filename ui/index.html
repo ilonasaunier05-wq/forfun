@@ -28,6 +28,7 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
   <main class="cols">
   <aside class="side">
    <section class="pane box"><div class="boxtitle">◈ MODULE STATUS</div>
+     <div id="connection" class="notice">Interface en cours de connexion. Si ce message reste affiché, le JavaScript ne fonctionne pas : ouvre la page depuis le serveur Python puis Ctrl+F5.</div>
      <div id="modules" class="tiny">Connecting to backend…</div>
      <div class="line"></div><div id="telemetry" class="tiny">Telemetry unavailable</div>
      <div class="line"></div><div class="tiny">Host telemetry is from the machine running Python. Cloud AI sends conversation context and relevant confirmed memories to your provider.</div>
@@ -67,7 +68,8 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
 </div>
 <dialog id="settings-dialog"><h2>SYSTEM CONFIGURATION</h2>
 <label>Moteur<select id="provider"><option>Groq officiel</option></select></label><label>Modèle<select id="model"></select></label>
-<label>Langue<select id="language"><option value="en">English</option><option value="fr">Français</option></select></label>
+<label>Microphone Windows<select id="input-device"><option value="">Windows default</option></select></label><div class="tiny">Choisis ton micro puis parle : les barres du réacteur doivent bouger. La langue de transcription et la voix sont indépendantes.</div>
+<label>Langue de transcription<select id="language"><option value="en">English</option><option value="fr">Français</option></select></label>
 <label>Voix masculine<select id="voice"><option value="en-GB-RyanNeural">Ryan · English UK</option><option value="fr-FR-HenriNeural">Henri · Français</option></select></label><div id="voice-note" class="notice">Synthèse Edge TTS sur le PC Windows; voix masculine système en secours.</div>
 <label><input type="checkbox" id="spoken" checked> Speak completed replies</label>
 <div class="notice">Recherche réelle DuckDuckGo disponible comme outil. Micro et lecture audio sont sur le PC qui exécute Python.</div>
@@ -80,5 +82,5 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
 <label>New memory<textarea id="memory-content" maxlength="4000"></textarea></label><div class="dialog-actions"><button class="ghost" id="memory-add">REVIEW & SAVE</button><button class="ghost" data-close="memory-dialog">CLOSE</button></div></dialog>
 <dialog id="confirm-dialog"><h2>CONFIRM ACTION</h2><p id="confirm-text" class="notice"></p><div class="dialog-actions"><button class="ghost" id="confirm-yes">CONFIRM</button><button class="ghost" id="confirm-no">CANCEL</button></div></dialog>
 <dialog id="login-dialog"><h2>PRIVATE Jarvis</h2><p class="notice">Enter the password configured on your own backend. API keys belong in the server .env.</p><form id="login-form"><input type="password" id="password" aria-label="JARVIS password" autocomplete="current-password"><button class="ghost">SIGN IN</button><p id="login-error" class="error"></p></form></dialog>
-<script src="/ui/app.js" defer></script>
+<script src="/ui/app.js?v=20261012-audio2" defer></script>
 </body></html>

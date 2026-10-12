@@ -15,6 +15,7 @@ class Microphone:
         self.noise = 0.003
         self.last_level = 0.0
         self.lock = threading.Lock()
+        self.device_name = None
 
     def start(self):
         if self.stream:
@@ -33,7 +34,9 @@ class Microphone:
                 except queue.Empty: pass
                 try: self.queue.put_nowait(chunk)
                 except queue.Full: pass
-        self.sample_rate = int(sd.query_devices(device, 'input')['default_samplerate'])
+        info = sd.query_devices(device, 'input')
+        self.device_name = info['name']
+        self.sample_rate = int(info['default_samplerate'])
         try:
             self.stream = sd.InputStream(samplerate=self.sample_rate, blocksize=int(self.sample_rate * 0.02), channels=1, dtype='float32', callback=callback, device=device)
             self.stream.start()
@@ -44,6 +47,12 @@ class Microphone:
                 self.stream.close()
             self.stream = None
             raise
+
+    @staticmethod
+    def devices():
+        import sounddevice as sd
+        return [{'id': i, 'name': d['name'], 'host_api': sd.query_hostapis(d['hostapi'])['name']}
+                for i, d in enumerate(sd.query_devices()) if d['max_input_channels'] > 0]
 
     @staticmethod
     def rms(chunk):

@@ -46,7 +46,7 @@ class Settings:
         self.tz = ZoneInfo(self.timezone)
         if self.language not in {'en', 'fr'}:
             raise ValueError('JARVIS_LANGUAGE must be en or fr.')
-        self.voice = self.voice or ('fr-FR-HenriNeural' if self.language == 'fr' else 'en-GB-RyanNeural')
+        self.voice = self.voice or 'en-GB-RyanNeural'
         if not 2 <= self.clap_sensitivity <= 30 or not 0.3 <= self.silence_seconds <= 3:
             raise ValueError('Invalid clap sensitivity or silence interval.')
         if self.ha_url and not self.ha_url.startswith(('http://', 'https://')):

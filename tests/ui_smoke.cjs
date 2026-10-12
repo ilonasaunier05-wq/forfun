@@ -14,8 +14,9 @@ let logs='';server.stderr.on('data',d=>logs+=d);server.stdout.on('data',d=>logs+
  await page.goto('http://localhost:8765/');await page.locator('#login-dialog').waitFor({state:'visible'});await page.fill('#password','ui-test-password');await page.locator('#login-form button').click();
  await page.waitForFunction(()=>document.querySelector('#telemetry').textContent.includes('Hôte Python'));
  await page.click('#theme');assert.equal(await page.locator('body').getAttribute('data-theme'),'feminine');
- await page.click('#settings-open');assert.equal(await page.locator('#voice').inputValue(),'en-GB-RyanNeural');await page.uncheck('#spoken');await page.click('[data-close="settings-dialog"]');
+ await page.click('#settings-open');assert.equal(await page.locator('#voice').inputValue(),'en-GB-RyanNeural');await page.selectOption('#language','fr');assert.equal(await page.locator('#voice').inputValue(),'en-GB-RyanNeural');await page.uncheck('#spoken');await page.click('[data-close="settings-dialog"]');
  await page.fill('#input','Hello');await page.locator('#form button').click();await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('GROQ_API_KEY is missing'));
+ await page.click('#run-pc');await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('open_app'));await page.click('#confirm-no');await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('cancelled'));
  await page.click('#memory-open');await page.locator('#memory-dialog').waitFor({state:'visible'});await page.fill('#memory-content','Real browser-confirmed note for this test');await page.click('#memory-add');
  await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('remember'));await page.click('#confirm-yes');
  await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('Saved to memory.md'));
