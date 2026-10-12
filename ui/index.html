@@ -20,6 +20,7 @@ select,textarea,input[type=password]{background:var(--bg);color:var(--white);bor
 @media(max-width:1170px){.chat{height:420px}}@media(max-width:750px){.top{flex-wrap:wrap}.actions{justify-content:flex-start}.chat{height:480px}.shell{padding:10px}.controlbar button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.halo{transform:none!important}}
 body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!important;transition:none!important}
+.orb{position:absolute;inset:14%;width:72%;height:72%;pointer-events:none;z-index:1}.reactor .core{z-index:2;background:radial-gradient(circle,rgba(3,11,20,.38),transparent 68%);border-color:transparent;box-shadow:none;pointer-events:none}.reactor .core:before{display:none}.reactor .core small{font-size:8px;letter-spacing:3px;opacity:.7}.reactor .core .title{font-size:clamp(20px,3vw,28px);letter-spacing:5px}.reactor[data-state="speaking"] .core,.reactor[data-state="listening"] .core{box-shadow:none}.reactor[data-state="preparing_voice"] .ringfast{animation-duration:5s}@media(prefers-reduced-motion:reduce){.ringspin,.ringreverse,.ringfast,.halo{animation:none}}
 </style>
 </head>
 <body data-theme="classic">
@@ -56,6 +57,7 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
      <g class="ring-parts dim"><path d="M40 300H135 M465 300H560 M300 40V135 M300 465V560" stroke-dasharray="3 8"/><path d="M88 210H142L163 233 M512 389H458L437 367 M205 78V130 M395 522V470"/></g>
      <g fill="var(--c)" opacity=".7"><circle cx="300" cy="31" r="3"/><circle cx="300" cy="569" r="3"/><circle cx="31" cy="300" r="3"/><circle cx="569" cy="300" r="3"/></g>
     </svg>
+    <canvas class="orb" id="jarvis-orb" aria-hidden="true"></canvas>
     <div class="core"><small>INTERFACE SYSTEM</small><div class="title">Jarvis</div><div class="mode" id="state">STANDBY</div><div class="freq" id="freq"></div></div>
    </div>
    <div class="hint" id="hint">Clique sur le réacteur ou sur <strong>ACTIVER MICRO</strong> pour parler.</div>
@@ -82,5 +84,6 @@ body[data-reduced="true"] *,body[data-reduced="true"] *::before{animation:none!i
 <label>New memory<textarea id="memory-content" maxlength="4000"></textarea></label><div class="dialog-actions"><button class="ghost" id="memory-add">REVIEW & SAVE</button><button class="ghost" data-close="memory-dialog">CLOSE</button></div></dialog>
 <dialog id="confirm-dialog"><h2>CONFIRM ACTION</h2><p id="confirm-text" class="notice"></p><div class="dialog-actions"><button class="ghost" id="confirm-yes">CONFIRM</button><button class="ghost" id="confirm-no">CANCEL</button></div></dialog>
 <dialog id="login-dialog"><h2>PRIVATE Jarvis</h2><p class="notice">Enter the password configured on your own backend. API keys belong in the server .env.</p><form id="login-form"><input type="password" id="password" aria-label="JARVIS password" autocomplete="current-password"><button class="ghost">SIGN IN</button><p id="login-error" class="error"></p></form></dialog>
-<script src="/ui/app.js?v=20261012-audio2" defer></script>
+<script src="/ui/orb.js?v=1" defer></script>
+<script src="/ui/app.js?v=20261012-orb1" defer></script>
 </body></html>

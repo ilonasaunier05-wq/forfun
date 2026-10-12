@@ -1,9 +1,10 @@
 // Real local backend + Chromium; no voice, provider, or hardware responses are fabricated.
 const {chromium}=require('playwright');
 const {spawn}=require('child_process');
-const {mkdtempSync,rmSync,readFileSync}=require('fs');
+const {mkdtempSync,rmSync,readFileSync,mkdirSync}=require('fs');
 const {tmpdir}=require('os');const {join}=require('path');const assert=require('assert/strict');
 const directory=mkdtempSync(join(tmpdir(),'jarvis-hud-'));
+const artifacts=process.env.JARVIS_ARTIFACTS_DIR||join(directory,'screenshots');mkdirSync(artifacts,{recursive:true});
 const python=process.platform==='win32'?'.venv/Scripts/python.exe':'.venv/bin/python';
 const server=spawn(python,['main.py','--text','--no-browser','--port','8765'],{env:{...process.env,NOTES_DIR:join(directory,'notes'),PROJECTS_WRITE_DIR:join(directory,'workspace'),GROQ_API_KEY:'',JARVIS_PASSWORD:'ui-test-password'},stdio:['pipe','pipe','pipe']});
 let logs='';server.stderr.on('data',d=>logs+=d);server.stdout.on('data',d=>logs+=d);
@@ -13,7 +14,16 @@ let logs='';server.stderr.on('data',d=>logs+=d);server.stdout.on('data',d=>logs+
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://localhost:8765/');await page.locator('#login-dialog').waitFor({state:'visible'});await page.fill('#password','ui-test-password');await page.locator('#login-form button').click();
  await page.waitForFunction(()=>document.querySelector('#telemetry').textContent.includes('Hôte Python'));
+ await page.waitForFunction(()=>document.querySelector('#jarvis-orb')?.dataset.energy!==undefined);
+ assert(await page.locator('#jarvis-orb').isVisible());
+ // Component-level visual input test, not a claim of physical audio playback.
+ await page.evaluate(()=>window.jarvisOrb.speech(.8,true));
+ await page.waitForFunction(()=>Number(document.querySelector('#jarvis-orb').dataset.energy)>.2);
+ await page.evaluate(()=>window.jarvisOrb.speech(0,false));
+ await page.waitForFunction(()=>Number(document.querySelector('#jarvis-orb').dataset.energy)<.05);
+ await page.screenshot({path:join(artifacts,'JARVIS_ORB_CYAN.png')});
  await page.click('#theme');assert.equal(await page.locator('body').getAttribute('data-theme'),'feminine');
+ await page.waitForTimeout(100);await page.screenshot({path:join(artifacts,'JARVIS_ORB_PINK.png')});
  await page.click('#settings-open');assert.equal(await page.locator('#voice').inputValue(),'en-GB-RyanNeural');await page.selectOption('#language','fr');assert.equal(await page.locator('#voice').inputValue(),'en-GB-RyanNeural');await page.uncheck('#spoken');await page.click('[data-close="settings-dialog"]');
  await page.fill('#input','Hello');await page.locator('#form button').click();await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('GROQ_API_KEY is missing'));
  await page.click('#run-pc');await page.locator('#confirm-dialog').waitFor({state:'visible'});assert((await page.locator('#confirm-text').innerText()).includes('open_app'));await page.click('#confirm-no');await page.waitForFunction(()=>document.querySelector('#messages').textContent.includes('cancelled'));

@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 import unicodedata
+from .audio_levels import pcm_envelope
 import edge_tts
 
 
@@ -39,6 +40,9 @@ class Speaker:
         self.last_error = None
         self.generation = 0
         self.edge_retry_after = 0.0
+        self.playback_level = 0.0
+        self.playing = False
+        self.event_loop = None
 
     def interrupt(self):
         self.generation += 1
@@ -64,7 +68,8 @@ class Speaker:
                 return
             self.stop_event.clear()
             self.speaking = True
-            await self.emit('state', 'speaking')
+            self.event_loop = asyncio.get_running_loop()
+            await self.emit('state', 'preparing_voice')
             try:
                 audio = io.BytesIO()
                 # honor the environment's HTTP proxy; never disable TLS verification
@@ -97,20 +102,45 @@ class Speaker:
                     await self._system_speech(text)
             finally:
                 self.speaking = False
+                self.playing = False
+                self.playback_level = 0.0
+                await self.emit('speech_energy', {'level': 0, 'playing': False})
                 await self.emit('state', 'idle')
 
+    def playback_event(self, level, playing):
+        self.playback_level, self.playing = level, playing
+        if self.event_loop and not self.event_loop.is_closed():
+            def publish():
+                asyncio.create_task(self.emit('speech_energy', {'level': level, 'playing': playing}))
+            self.event_loop.call_soon_threadsafe(publish)
+
     def _play(self, data, format='mp3'):
-        os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
         import pygame
-        if not pygame.mixer.get_init():
-            pygame.mixer.init()
+        if not pygame.mixer.get_init(): pygame.mixer.init()
+        envelope = []
+        try:
+            decoded = pygame.mixer.Sound(file=io.BytesIO(data))
+            rate, bits, channels = pygame.mixer.get_init()
+            envelope = pcm_envelope(decoded.get_raw(), rate, bits, channels)
+        except pygame.error:
+            # Some SDL builds stream MP3 but cannot decode it as a Sound.
+            # Playback still works; no invented amplitude is reported.
+            pass
         pygame.mixer.music.load(io.BytesIO(data), format)
-        pygame.mixer.music.play()
-        clock = pygame.time.Clock()
-        while pygame.mixer.music.get_busy() and not self.stop_event.is_set():
-            clock.tick(30)
-        pygame.mixer.music.stop()
-        pygame.mixer.music.unload()
+        try:
+            pygame.mixer.music.play()
+            started = time.monotonic()
+            if self.event_loop and not self.event_loop.is_closed():
+                asyncio.run_coroutine_threadsafe(self.emit('state', 'speaking'), self.event_loop)
+            clock = pygame.time.Clock()
+            while pygame.mixer.music.get_busy() and not self.stop_event.is_set():
+                frame = int((time.monotonic() - started) * 30)
+                self.playback_event(envelope[frame] if frame < len(envelope) else 0, True)
+                clock.tick(30)
+        finally:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.unload()
+            self.playback_event(0, False)
 
     async def _system_speech(self, text):
         model = (self.settings.private_dir / 'voices' / 'en_GB-alan-medium.onnx').resolve()
@@ -134,6 +164,8 @@ class Speaker:
         try:
             process.stdin.write(json.dumps(payload))
             process.stdin.close()
+            if not local:
+                await self.emit('state', 'speaking')
             # A blocked COM driver must never retain the conversation lock indefinitely.
             deadline = time.monotonic() + min(45, max(15, len(text.split()) / 2 + 8))
             while process.poll() is None:

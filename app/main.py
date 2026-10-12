@@ -106,7 +106,7 @@ def create_app(runtime=None):
 
     @app.get('/api/status')
     def status():
-        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'mic_device':rt.mic.device_name,'mic_noise':rt.mic.noise,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice,'tts_error':rt.speaker.last_error}
+        return {**rt.tools.telemetry(),'microphone_error':rt.microphone_error,'microphone_ready':rt.mic.stream is not None,'voice_active':bool(rt.voice_task and not rt.voice_task.done()),'mic_level':rt.mic.last_level,'mic_device':rt.mic.device_name,'mic_noise':rt.mic.noise,'tts_backend':rt.speaker.backend,'tts_voice':rt.speaker.selected_voice,'tts_error':rt.speaker.last_error,'speech_level':rt.speaker.playback_level,'speech_playing':rt.speaker.playing}
 
     @app.get('/api/devices')
     async def devices(): return await rt.tools.devices()
