@@ -48,6 +48,8 @@ class Speaker:
             except OSError: pass
 
     async def say(self, text, full=False):
+        if time.monotonic() < self.edge_retry_after and time.monotonic() < self.system_retry_after:
+            return  # The first failure is visible in HUD status; do not repeat it every turn.
         text = sanitize_tts(text)
         if not text:
             return

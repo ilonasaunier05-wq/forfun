@@ -133,7 +133,7 @@ class ToolRegistry:
         event = self.resolve_event(args) if name == 'add_calendar_event' else None
         if name in CHANGING:
             if not await confirm(self.confirmation_text(name, args, event)):
-                result = {'status': 'cancelled', 'message': 'User declined; no action performed.'}
+                result = {'status': 'cancelled', 'message': 'Action not confirmed (cancelled or confirmation expired); no action performed.'}
                 if self.store: self.store.log_action({'tool': name, 'arguments': args}, result)
                 return result
             if not self.settings.tools_enabled:

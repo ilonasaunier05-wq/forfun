@@ -97,6 +97,24 @@ class VoiceTextTests(unittest.TestCase):
         self.assertIn('Ready',text)
         for bad in ['J.A.R.V.I.S','JARVIS','READY','🤖','print(42)','**','https://']:self.assertNotIn(bad,text)
 
+class VoiceConfirmationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_voice_action_can_be_confirmed_on_screen_without_tts_or_mic(self):
+        for approved in (True, False):
+            with tempfile.TemporaryDirectory() as directory:
+                runtime = Runtime(Settings(notes_dir=Path(directory), projects_dir=Path(directory), key=''))
+                events = asyncio.Queue()
+                runtime.listeners.add(events)
+                task = asyncio.create_task(runtime.confirm('Confirm add_note?', 'voice'))
+                while True:
+                    event = await events.get()
+                    if event['type'] == 'confirmation':
+                        self.assertEqual(event['data']['origin'], 'voice')
+                        runtime.answer_confirmation(event['data']['id'], approved)
+                        break
+                self.assertEqual(await asyncio.wait_for(task, 2), approved)
+                self.assertFalse(runtime.confirmations)
+                await runtime.close()
+
 class ApiTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()

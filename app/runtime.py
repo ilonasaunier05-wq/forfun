@@ -85,19 +85,15 @@ class Runtime:
             await self.emit('error', self.safe_error(exc))
 
     async def confirm(self, prompt, origin):
-        if origin == 'voice':
-            await self.emit('notice',prompt)
-            await self.soft_say(prompt + (' Dis oui pour confirmer.' if self.settings.language == 'fr' else ' Say yes to confirm.'), full=True)
-            async with self.mic_lock:
-                audio = await asyncio.to_thread(self.mic.record, 8, 8, self.stop)
-                response = await self.brain.transcribe(audio, self.rate_notice)
-            await self.emit('transcript', response)
-            return response.lower().strip(' .!?') in {'yes', 'confirm', 'yes confirm', 'oui', 'confirme', 'oui confirme'}
         await self.emit('state','awaiting_confirmation')
         token = secrets.token_urlsafe(24)
         future = asyncio.get_running_loop().create_future()
         self.confirmations[token] = (future, origin)
         await self.emit('confirmation', {'id': token, 'prompt': prompt, 'origin': origin, 'expires_in': 90})
+        voice_stop = threading.Event()
+        voice_task = None
+        if origin == 'voice':
+            voice_task = asyncio.create_task(self.voice_confirmation(prompt, future, voice_stop))
         if origin == 'console':
             await self.soft_say(prompt + ' Type yes or no in the terminal.', full=True)
         try:
@@ -107,7 +103,39 @@ class Runtime:
         except asyncio.TimeoutError:
             return False
         finally:
+            voice_stop.set()
+            if voice_task:
+                self.speaker.interrupt()
+                try: await voice_task
+                except asyncio.CancelledError: pass
             self.confirmations.pop(token, None)
+            await self.emit('confirmation_closed', {'id': token})
+
+    async def voice_confirmation(self, prompt, future, stop):
+        await self.emit('notice', 'Confirm on screen, or say yes/no when listening. Silence does not approve or decline the action.')
+        try:
+            if future.done() or stop.is_set(): return
+            await self.soft_say(prompt + ' Say yes or no, or confirm on screen.', full=True)
+            if future.done() or stop.is_set(): return
+            async with self.mic_lock:
+                await self.emit('state', 'listening')
+                audio = await asyncio.to_thread(self.mic.record, 8, 8, stop)
+                if future.done() or stop.is_set(): return
+                response = await self.brain.transcribe(audio, self.rate_notice)
+            await self.emit('transcript', response)
+            response = response.lower().strip(' .!?')
+            if not future.done():
+                if response in {'yes', 'confirm', 'yes confirm', 'oui', 'confirme', 'oui confirme'}:
+                    future.set_result(True)
+                elif response in {'no', 'cancel', 'non', 'annule'}:
+                    future.set_result(False)
+                else:
+                    await self.emit('notice', 'Confirmation was unclear. Use Confirm or Cancel on screen.')
+        except Exception as exc:
+            if not future.done():
+                await self.emit('notice', 'Voice confirmation unavailable: ' + self.safe_error(exc) + ' Use Confirm or Cancel on screen.')
+        finally:
+            if not future.done(): await self.emit('state', 'awaiting_confirmation')
 
     def answer_confirmation(self, token, approved):
         item = self.confirmations.get(token)
@@ -142,6 +170,7 @@ class Runtime:
             answer = ''
             try:
                 async for event in self.brain.reply(self.store.history(sid), lambda prompt: self.confirm(prompt, origin), model):
+                    if event['type'] == 'assistant_reset': answer = ''
                     if event['type'] == 'token': answer += event['data']
                     if event['type'] == 'rate_limit':
                         await self.soft_say(event['data'])

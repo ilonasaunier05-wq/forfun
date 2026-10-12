@@ -10,12 +10,14 @@ async function api(path,options={}){const r=await fetch('/api'+path,{signal:Abor
 const post=(path,body={})=>api(path,{method:'POST',body:JSON.stringify(body)});
 const guard=fn=>(...args)=>Promise.resolve().then(()=>fn(...args)).catch(fail);
 function preferences(){localStorage.setItem('jarvis-prefs',JSON.stringify({theme:document.body.dataset.theme,spoken:$('#spoken').checked,reduced:$('#reduced').checked}));}
-let confirming=false;
-async function confirmation(prompt){if(confirming)return false;confirming=true;$('#confirm-text').textContent=prompt;$('#confirm-dialog').showModal();return new Promise(resolve=>{const done=ok=>{confirming=false;$('#confirm-dialog').close();$('#confirm-dialog').oncancel=null;resolve(ok);};$('#confirm-yes').onclick=()=>done(true);$('#confirm-no').onclick=()=>done(false);$('#confirm-dialog').oncancel=e=>{e.preventDefault();done(false);};});}
+let confirming=false, confirmationId=null, closeConfirmation=null;
+async function confirmation(prompt){if(confirming)return false;confirming=true;$('#confirm-text').textContent=prompt;$('#confirm-dialog').showModal();return new Promise(resolve=>{const done=ok=>{confirming=false;closeConfirmation=null;$('#confirm-dialog').close();$('#confirm-dialog').oncancel=null;resolve(ok);};closeConfirmation=()=>done(null);$('#confirm-yes').onclick=()=>done(true);$('#confirm-no').onclick=()=>done(false);$('#confirm-dialog').oncancel=e=>{e.preventDefault();done(false);};});}
 function showSources(sources,target){const panel=document.createElement('div');panel.className='tiny';panel.textContent='Sources réellement récupérées :';for(const source of sources){try{const u=new URL(source.url);if(!['https:','http:'].includes(u.protocol))continue;const a=document.createElement('a');a.href=u.href;a.rel='noopener noreferrer';a.target='_blank';a.textContent=source.title||u.hostname;panel.append(document.createElement('br'),a);}catch{}}(target?.parentNode||$('#messages')).append(panel);}
 async function handle(event,target){
  if(event.type==='state'&&!(event.data==='idle'&&$('#reactor').dataset.state==='error'))state(event.data);
- if(event.type==='confirmation'&&event.data.origin==='ui'){const ok=await confirmation(event.data.prompt);await post('/confirm',{id:event.data.id,approved:ok});}
+ if(event.type==='confirmation'&&['ui','voice'].includes(event.data.origin)){confirmationId=event.data.id;const ok=await confirmation(event.data.prompt);if(ok!==null)await post('/confirm',{id:event.data.id,approved:ok});}
+ if(event.type==='confirmation_closed'&&event.data.id===confirmationId){closeConfirmation?.();confirmationId=null;}
+ if(event.type==='assistant_reset'){const msg=target||nativeReply;if(msg)msg.textContent='';}
  if(event.type==='native_user'){session=event.data.session;localStorage.setItem('jarvis-session',session);if(![...$('#sessions').options].some(o=>o.value===session))$('#sessions').add(new Option('Conversation vocale',session));$('#sessions').value=session;add('user',event.data.text);nativeReply=add('assistant','');}
  if(event.type==='token'){const msg=target||nativeReply||(nativeReply=add('assistant',''));msg.textContent+=event.data;}
  if(event.type==='transcript')$('#hint').textContent=event.data;

@@ -169,3 +169,7 @@ Ouvre le HUD depuis l’adresse affichée par `python main.py` (pas en double-cl
 ### Voix Windows bloquée après une erreur Edge TTS
 
 La voix de secours pyttsx3 s’exécute dans un processus séparé ; F9 peut l’arrêter et un délai maximal tue un pilote bloqué. Une panne désactive cette voix pour cinq minutes et apparaît dans le HUD. Aucun pilote audio n’est appelé par le bouton d’interruption sur le thread du serveur. Pour diagnostiquer une interface qui affiche « Signal timed out », ferme les autres onglets Jarvis, redémarre avec `./start.ps1 -Text`, puis envoie un message écrit. Ce mode démarre sans micro et sans lecture automatique des réponses pour isoler complètement la conversation texte.
+
+### Confirmation après une demande vocale
+
+Les actions vocales proposent aussi Confirm/Cancel à l’écran. Dire yes/no reste disponible ; silence, transcription ambiguë ou micro indisponible laissent la confirmation visuelle ouverte au lieu de prétendre que l’utilisateur a refusé. Aucune action ne part sans confirmation. Les textes provisoires produits avant un appel outil sont retirés, puis le résultat réel est affiché. Une voix indisponible ne répète plus sa même erreur à chaque réponse pendant son délai de reprise.
